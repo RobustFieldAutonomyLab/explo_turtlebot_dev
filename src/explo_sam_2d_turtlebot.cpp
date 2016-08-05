@@ -76,7 +76,7 @@ struct SensorModel {
 }; 
 
 // Establish sensor kinect
-SensorModel Kinect_360(64, 48, 2*PI*57/360, 2*PI*43/360, 5);
+SensorModel Kinect_360(64, 48, 2*PI*57/360, 2*PI*43/360, 10);
 
 //entropy Input: octree   Output:volume
 double get_free_volume(const octomap::OcTree *octree) {
@@ -114,7 +114,7 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(point3d sensor_orig, double initial_yaw) {
     double R = 0.5;   // Robot step, in meters.
-    double n = 1.5;
+    double n = 12;
     octomap::OcTreeNode *n_cur; // What is *n_cur################
 
     vector<pair<point3d, point3d>> candidates;
@@ -122,7 +122,7 @@ vector<pair<point3d, point3d>> generate_candidates(point3d sensor_orig, double i
     double x, y;
 
     // for(z = sensor_orig.z() - 1; z <= sensor_orig.z() + 1; z += 1)
-        for(double yaw = initial_yaw-PI; yaw < initial_yaw+PI; yaw += PI / (2*n) ) {
+        for(double yaw = initial_yaw-PI; yaw < initial_yaw+PI; yaw += PI*2 / n ) {
             x = sensor_orig.x() + R * cos(yaw);
             y = sensor_orig.y() + R * sin(yaw);
 
@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
 
     // Initialize time
     time_t rawtime;
-    struct tm * timeinfo;//maybe something wrong here
+    struct tm * timeinfo;
     char buffer[80];
     time (&rawtime);
     timeinfo = localtime(&rawtime);
@@ -270,7 +270,7 @@ int main(int argc, char **argv) {
 
 
     ros::Subscriber kinect_sub = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 1, kinect_callbacks);// need to change##########
-    ros::Subscriber hokuyo_sub = nh.subscribe<sensor_msgs::PointCloud2>("/scan", 1, hokuyo_callbacks);// need to change#############
+    ros::Subscriber hokuyo_sub = nh.subscribe<sensor_msgs::PointCloud2>("/hokuyo_points", 1, hokuyo_callbacks);// need to change#############
     ros::Publisher GoalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Goal_Marker", 1 );
     ros::Publisher JackalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Jackal_Marker", 1 );
     ros::Publisher Candidates_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_MIs", 1);
@@ -560,9 +560,9 @@ int main(int argc, char **argv) {
               }
            max_order[p] = j;
            }
-        ROS_INFO("max_order : %ld %ld %ld %ld %ld %ld %3.2f %3.2f %3.2f %3.2f %3.2f %3.2f", max_order[0], max_order[1], max_order[2], max_order[3], max_order[4], max_order[5], MIs[max_order[0]], MIs[max_order[1]], MIs[max_order[2]], MIs[max_order[3]], MIs[max_order[4]], MIs[max_order[5]]);
+       // ROS_INFO("max_order : %ld %ld %ld %ld %ld %ld %3.2f %3.2f %3.2f %3.2f %3.2f %3.2f", max_order[0], max_order[1], max_order[2], max_order[3], max_order[4], max_order[5], MIs[max_order[0]], MIs[max_order[1]], MIs[max_order[2]], MIs[max_order[3]], MIs[max_order[4]], MIs[max_order[5]]);
         
-        p = 5;
+        p = candidates.size()-1;
         loop:
         max_idx = max_order[p];
  

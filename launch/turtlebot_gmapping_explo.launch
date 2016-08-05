@@ -18,6 +18,8 @@
 
   <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
 
+  <node pkg="explo_octo_3d" type="scan_to_pcl" name="scan_to_pcl" />
+
       <!-- Using octomap -->
     <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
         <param name="resolution" value="0.05" />
