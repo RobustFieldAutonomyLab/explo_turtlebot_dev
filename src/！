@@ -130,7 +130,7 @@ vector<pair<point3d, point3d>> generate_candidates(point3d sensor_orig, double i
             bool candidate_valid = true;
             for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso/2) 
                 for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso/2)
-                    for (double z_buf = z - 0.2; z_buf < z + 0.2; z_buf += octo_reso/2)
+                    for (double z_buf = z - 0.1; z_buf < z + 0.1; z_buf += octo_reso/2)
             {
                 n_cur = cur_tree_2d->search(point3d(x_buf, y_buf, z_buf));
                 if(!n_cur) {
@@ -491,7 +491,6 @@ int main(int argc, char **argv) {
         long int max_order[candidates.size()];
         //vect<double> MI_order[candidates.size()];
         unsigned int p = 0;
-        int m=0;
         //for(int i = 0; i < candidates.size(); i++)
         //   {
         //     max_order[i] = i;
@@ -510,30 +509,19 @@ int main(int argc, char **argv) {
             // Evaluate Mutual Information
             Secs_tmp = ros::Time::now().toSec();
             Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
-            octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
+            octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
             MIs[i] = calc_MI(cur_tree, c.first, hits, before);
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
-           /* for(int j = 0; j = i; j++)
-            {
-                ROS_INFO("here1");   
+            for(int j = 0; j = i; j++)
+            {   
 
-               // int m = max_order[j];
-               for(int a=0; a=i; a++)
-                  {
-                  if(j=max_order[a])
-                    {
-                    m=a;
-                    break;
-                    }
-                  }
-                if (MIs[i] > MIs[m])
+                int m = max_order[j];
+                if (MIs[i] >= MIs[m])
                 {
-                    ROS_INFO("here2");
-                    for(long int q = i-1; q > j-1; q-- )
+                    for(long int q = i-1; q = j; q-- )
                     {
-                        ROS_INFO("here3");
                         max_order[q+1] = max_order[q];
                         
                     }
@@ -545,24 +533,9 @@ int main(int argc, char **argv) {
                     ROS_INFO("max_order : %ld %ld %ld %ld %ld %ld", max_order[0], max_order[1], max_order[2], max_order[3], max_order[4], max_order[5]); //, MIs[max_order[0]], MIs[max_order[1]], MIs[max_order[2]], MIs[max_order[3]], MIs[max_order[4]], MIs[max_order[5]]);
                     break;
                 }
-            }*/
+            }
         }
-        for(int j=0; j<candidates.size(); j++)
-           {
-            p=0;
-           for(int m=0; m<candidates.size(); m++)
-              {
-            
-              if (MIs[j] > MIs[m])
-                 {
-                 p++;
-                 }
-              }
-           max_order[p] = j;
-           }
-        ROS_INFO("max_order : %ld %ld %ld %ld %ld %ld %3.2f %3.2f %3.2f %3.2f %3.2f %3.2f", max_order[0], max_order[1], max_order[2], max_order[3], max_order[4], max_order[5], MIs[max_order[0]], MIs[max_order[1]], MIs[max_order[2]], MIs[max_order[3]], MIs[max_order[4]], MIs[max_order[5]]);
-        
-        p = 5;
+        p = 0;
         loop:
         max_idx = max_order[p];
  
@@ -705,7 +678,7 @@ int main(int argc, char **argv) {
         {
             ROS_ERROR("Failed to navigate to goal");
             // if max MI candidates can't be arrived, try second max MI candidates
-            p--;
+            p++;
             goto loop;
         }
         // r.sleep();
