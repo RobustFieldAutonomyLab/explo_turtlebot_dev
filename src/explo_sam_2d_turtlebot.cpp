@@ -110,16 +110,84 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
     return hits;
 }
 
+vector<point3d> generate_frontier_points(const octomap::OcTree *octree) {
+
+    vector<point3d> frontier_points;
+    octomap::OcTreeNode *n_cur_frontier;
+
+    // find frontier points#############################
+    for(octomap::OcTree::leaf_iterator n = octree->begin_leafs(octree->getTreeDepth()); n != octree->end_leafs(); ++n)
+    {
+
+      if(!cur_tree_2d->isNodeOccupied(*n))
+        {
+         double x_cur = n.getX();
+         double y_cur = n.getY();
+         double z_cur = n.getZ();
+         for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.1; x_cur_buf += octo_reso/2) 
+             for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.1; y_cur_buf += octo_reso/2)
+                 //for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
+            {
+                n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
+                if(!n_cur_frontier)
+                {
+                    frontier_points.push_back(point3d(x_cur,y_cur,z_cur));
+                 
+                }
+
+            }
+        }
+    }
+
+    return frontier_points;
+    //##################################################
+}
+
+
+
+
+
+
+
+
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(point3d sensor_orig, double initial_yaw) {
     double R = 0.5;   // Robot step, in meters.
     double n = 12;
     octomap::OcTreeNode *n_cur; // What is *n_cur################
-
+    //octomap::OcTreeNode *n_cur_frontier;
     vector<pair<point3d, point3d>> candidates;
+    //vector<point3d> frontier_points;
     double z = sensor_orig.z();                // fixed 
     double x, y;
+    // find frontier points#############################
+    //for(octomap::OcTree::leaf_iterator n = cur_tree_2d->begin_leafs(cur_tree_2d->getTreeDepth()); n != cur_tree_2d->end_leafs(); ++n)
+    //{
+
+    //  if(!cur_tree_2d->isNodeOccupied(n_cur))
+    //    {
+    //     double x_cur = n.getX();
+    //     double y_cur = n.getY();
+    //     double z_cur = n.getZ();
+    //     for (double x_cur_buf = x_cur - 0.05; x_cur_buf < x_cur + 0.05; x_cur_buf += octo_reso/2) 
+    //         for (double y_cur_buf = y_cur - 0.05; y_cur_buf < y_cur + 0.05; y_cur_buf += octo_reso/2)
+    //             for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
+    //        {
+    //            n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur_buf));
+    //            if(!n_cur_frontier)
+    //            {
+    //                frontier_points.push_back(point3d(x_cur,y_cur,z_cur));
+                 
+    //            }
+
+    //       }
+    //    }
+    //}
+
+
+    //##################################################
+
 
     // for(z = sensor_orig.z() - 1; z <= sensor_orig.z() + 1; z += 1)
         for(double yaw = initial_yaw-PI; yaw < initial_yaw+PI; yaw += PI*2 / n ) {
@@ -275,6 +343,7 @@ int main(int argc, char **argv) {
     ros::Publisher JackalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Jackal_Marker", 1 );
     ros::Publisher Candidates_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_MIs", 1);
     ros::Publisher Octomap_marker_pub = nh.advertise<visualization_msgs::Marker>("Occupied_MarkerArray", 1);
+    ros::Publisher Frontier_points_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points", 1);//changed here#######
 
 
     tf_listener = new tf::TransformListener();
@@ -283,6 +352,7 @@ int main(int argc, char **argv) {
 
     visualization_msgs::MarkerArray CandidatesMarker_array;
     visualization_msgs::Marker OctomapOccupied_cubelist;
+    visualization_msgs::Marker Frontier_points_cubelist;
     
     ros::Time now_marker = ros::Time::now();
    
@@ -354,7 +424,7 @@ int main(int argc, char **argv) {
 
     // Rotate ~60 degrees 
     point3d next_vp(laser_orig.x(), laser_orig.y(),laser_orig.z());
-    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()+0.5233); // why 0.5233?###
+    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233); // why 0.5233?###
     Goal_heading.normalize();
     bool arrived = goToDest(laser_orig, Goal_heading);
 
@@ -389,7 +459,7 @@ int main(int argc, char **argv) {
     ros::spinOnce();
 
     // Rotate another 60 degrees
-    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()+0.5233);
+    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233);
     arrived = goToDest(laser_orig, Goal_heading);
 
     // Update the pose of the robot
@@ -423,7 +493,7 @@ int main(int argc, char **argv) {
     ros::spinOnce();
 
     // Rotate another 60 degrees
-    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()+0.5233);
+    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233);
     arrived = goToDest(laser_orig, Goal_heading);
 
     // Update the pose of the robot
@@ -684,7 +754,7 @@ int main(int argc, char **argv) {
 
             unsigned long int j = 0;
             geometry_msgs::Point p;
-            for(octomap::OcTree::leaf_iterator n = cur_tree->begin_leafs(cur_tree->getTreeDepth()); n != cur_tree->end_leafs(); ++n) {
+            for(octomap::OcTree::leaf_iterator n = cur_tree_2d->begin_leafs(cur_tree_2d->getTreeDepth()); n != cur_tree_2d->end_leafs(); ++n) { // changed there#######
                 if(!cur_tree->isNodeOccupied(*n)) continue;
                 p.x = n.getX();
                 p.y = n.getY();
@@ -694,6 +764,41 @@ int main(int argc, char **argv) {
             }
             ROS_INFO("Publishing %ld occupied cells", j);
             Octomap_marker_pub.publish(OctomapOccupied_cubelist); //publish octomap############
+
+            // Publish frontier points#############
+            vector<point3d> frontier_points=generate_frontier_points( cur_tree_2d );
+            now_marker = ros::Time::now();
+            Frontier_points_cubelist.header.frame_id = "map";
+            Frontier_points_cubelist.header.stamp = now_marker;
+            Frontier_points_cubelist.ns = "frontier_points_array";
+            Frontier_points_cubelist.id = 0;
+            Frontier_points_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
+            Frontier_points_cubelist.action = visualization_msgs::Marker::ADD;
+            Frontier_points_cubelist.scale.x = octo_reso;
+            Frontier_points_cubelist.scale.y = octo_reso;
+            Frontier_points_cubelist.scale.z = octo_reso;
+            Frontier_points_cubelist.color.a = 1.0;
+            Frontier_points_cubelist.color.r = (double)19/255;
+            Frontier_points_cubelist.color.g = 1.0f;
+            Frontier_points_cubelist.color.b = (double)156/255;
+
+            unsigned long int t = 0;
+            geometry_msgs::Point q;
+            for(int n = 0; n < frontier_points.size(); n++) { // changed there#######
+
+                q.x = frontier_points[n].x();
+                q.y = frontier_points[n].y();
+                q.z = frontier_points[n].z();
+                Frontier_points_cubelist.points.push_back(q); 
+                t++;
+            }
+            ROS_INFO("Publishing %ld frontier_points", t);
+            Octomap_marker_pub.publish(Frontier_points_cubelist); //publish frontier_points############
+
+            //vector<point3d>(frontier_points).swap(frontier_points);
+            frontier_points.clear();
+            //#############################################################################################
+
 
             // Send out results to file.
             explo_log_file.open(logfilename, std::ofstream::out | std::ofstream::app);
