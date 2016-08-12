@@ -124,8 +124,8 @@ vector<point3d> generate_frontier_points(const octomap::OcTree *octree) {
          double x_cur = n.getX();
          double y_cur = n.getY();
          double z_cur = n.getZ();
-         for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.1; x_cur_buf += octo_reso/2) 
-             for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.1; y_cur_buf += octo_reso/2)
+         for (double x_cur_buf = x_cur - 0.15; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso/2)
+             for (double y_cur_buf = y_cur - 0.15; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso/2)
                  //for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
             {
                 n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
@@ -156,35 +156,9 @@ vector<pair<point3d, point3d>> generate_candidates(point3d sensor_orig, double i
     double R = 0.5;   // Robot step, in meters.
     double n = 12;
     octomap::OcTreeNode *n_cur; // What is *n_cur################
-    //octomap::OcTreeNode *n_cur_frontier;
     vector<pair<point3d, point3d>> candidates;
-    //vector<point3d> frontier_points;
     double z = sensor_orig.z();                // fixed 
     double x, y;
-    // find frontier points#############################
-    //for(octomap::OcTree::leaf_iterator n = cur_tree_2d->begin_leafs(cur_tree_2d->getTreeDepth()); n != cur_tree_2d->end_leafs(); ++n)
-    //{
-
-    //  if(!cur_tree_2d->isNodeOccupied(n_cur))
-    //    {
-    //     double x_cur = n.getX();
-    //     double y_cur = n.getY();
-    //     double z_cur = n.getZ();
-    //     for (double x_cur_buf = x_cur - 0.05; x_cur_buf < x_cur + 0.05; x_cur_buf += octo_reso/2) 
-    //         for (double y_cur_buf = y_cur - 0.05; y_cur_buf < y_cur + 0.05; y_cur_buf += octo_reso/2)
-    //             for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
-    //        {
-    //            n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur_buf));
-    //            if(!n_cur_frontier)
-    //            {
-    //                frontier_points.push_back(point3d(x_cur,y_cur,z_cur));
-                 
-    //            }
-
-    //       }
-    //    }
-    //}
-
 
     //##################################################
 
@@ -344,6 +318,7 @@ int main(int argc, char **argv) {
     ros::Publisher Candidates_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_MIs", 1);
     ros::Publisher Octomap_marker_pub = nh.advertise<visualization_msgs::Marker>("Occupied_MarkerArray", 1);
     ros::Publisher Frontier_points_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points", 1);//changed here#######
+    ros::Publisher Free_marker_pub = nh.advertise<visualization_msgs::Marker>("Free_MarkerArray", 1);
 
 
     tf_listener = new tf::TransformListener();
@@ -353,6 +328,10 @@ int main(int argc, char **argv) {
     visualization_msgs::MarkerArray CandidatesMarker_array;
     visualization_msgs::Marker OctomapOccupied_cubelist;
     visualization_msgs::Marker Frontier_points_cubelist;
+    //visualization_msgs::Marker Frontier_points_delete;
+    visualization_msgs::Marker Free_cubelist;
+    //bool frontier_old;
+
     
     ros::Time now_marker = ros::Time::now();
    
@@ -559,13 +538,8 @@ int main(int argc, char **argv) {
         double before = get_free_volume(cur_tree);
         max_idx = 0;
         long int max_order[candidates.size()];
-        //vect<double> MI_order[candidates.size()];
         unsigned int p = 0;
         int m=0;
-        //for(int i = 0; i < candidates.size(); i++)
-        //   {
-        //     max_order[i] = i;
-        //   }
 
         // for every candidate...
         double Secs_CastRay, Secs_InsertRay, Secs_tmp;  //What are those? ####
@@ -585,38 +559,8 @@ int main(int argc, char **argv) {
             Secs_tmp = ros::Time::now().toSec();
             MIs[i] = calc_MI(cur_tree, c.first, hits, before);
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
-           /* for(int j = 0; j = i; j++)
-            {
-                ROS_INFO("here1");   
-
-               // int m = max_order[j];
-               for(int a=0; a=i; a++)
-                  {
-                  if(j=max_order[a])
-                    {
-                    m=a;
-                    break;
-                    }
-                  }
-                if (MIs[i] > MIs[m])
-                {
-                    ROS_INFO("here2");
-                    for(long int q = i-1; q > j-1; q-- )
-                    {
-                        ROS_INFO("here3");
-                        max_order[q+1] = max_order[q];
-                        
-                    }
-                    max_order[j] = i;
-                    //for(long int y=0; y<candidates.size(); y++)
-                      // {
-                         // y = max_order[y];
-                      // }
-                    ROS_INFO("max_order : %ld %ld %ld %ld %ld %ld", max_order[0], max_order[1], max_order[2], max_order[3], max_order[4], max_order[5]); //, MIs[max_order[0]], MIs[max_order[1]], MIs[max_order[2]], MIs[max_order[3]], MIs[max_order[4]], MIs[max_order[5]]);
-                    break;
-                }
-            }*/
         }
+
         for(int j=0; j<candidates.size(); j++)
            {
             p=0;
@@ -755,7 +699,7 @@ int main(int argc, char **argv) {
             unsigned long int j = 0;
             geometry_msgs::Point p;
             for(octomap::OcTree::leaf_iterator n = cur_tree_2d->begin_leafs(cur_tree_2d->getTreeDepth()); n != cur_tree_2d->end_leafs(); ++n) { // changed there#######
-                if(!cur_tree->isNodeOccupied(*n)) continue;
+                if(!cur_tree_2d->isNodeOccupied(*n)) continue;
                 p.x = n.getX();
                 p.y = n.getY();
                 p.z = n.getZ();
@@ -765,8 +709,45 @@ int main(int argc, char **argv) {
             ROS_INFO("Publishing %ld occupied cells", j);
             Octomap_marker_pub.publish(OctomapOccupied_cubelist); //publish octomap############
 
+            // Prepare the header for free array
+            now_marker = ros::Time::now();
+            Free_cubelist.header.frame_id = "map";
+            Free_cubelist.header.stamp = now_marker;
+            Free_cubelist.ns = "octomap_free_array";
+            Free_cubelist.id = 0;
+            Free_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
+            Free_cubelist.action = visualization_msgs::Marker::ADD;
+            Free_cubelist.scale.x = octo_reso;
+            Free_cubelist.scale.y = octo_reso;
+            Free_cubelist.scale.z = octo_reso;
+            Free_cubelist.color.a = 0.3;
+            Free_cubelist.color.r = (double)102/255;
+            Free_cubelist.color.g = (double)255/255;
+            Free_cubelist.color.b = (double)102/255;
+
+            unsigned long int w = 0;
+            //geometry_msgs::Point p;
+            for(octomap::OcTree::leaf_iterator n = cur_tree_2d->begin_leafs(cur_tree_2d->getTreeDepth()); n != cur_tree_2d->end_leafs(); ++n) { // changed there#######
+                if(cur_tree_2d->isNodeOccupied(*n)) continue;
+                p.x = n.getX();
+                p.y = n.getY();
+                p.z = n.getZ();
+                Free_cubelist.points.push_back(p); 
+                w++;
+            }
+            ROS_INFO("Publishing %ld free cells", w);
+            Free_marker_pub.publish(Free_cubelist); //publish octomap############
+
             // Publish frontier points#############
+            //vector<point3d> frontier_points;
+            //frontier_points.clear();
+            //Frontier_points_cubelist.action=visualization_msgs::Marker::DELETE;
+            //long int c = Frontier_points_cubelist.size();
+            //ROS_INFO("Frontier has %ld points", c);
+            //vector<point3d> frontier_points_old;
+            //vector<point3d> frontier_points_delete;
             vector<point3d> frontier_points=generate_frontier_points( cur_tree_2d );
+            Frontier_points_cubelist.points.resize(frontier_points.size());
             now_marker = ros::Time::now();
             Frontier_points_cubelist.header.frame_id = "map";
             Frontier_points_cubelist.header.stamp = now_marker;
@@ -778,11 +759,13 @@ int main(int argc, char **argv) {
             Frontier_points_cubelist.scale.y = octo_reso;
             Frontier_points_cubelist.scale.z = octo_reso;
             Frontier_points_cubelist.color.a = 1.0;
-            Frontier_points_cubelist.color.r = (double)19/255;
-            Frontier_points_cubelist.color.g = 1.0f;
-            Frontier_points_cubelist.color.b = (double)156/255;
+            Frontier_points_cubelist.color.r = (double)255/255;
+            Frontier_points_cubelist.color.g = 0;
+            Frontier_points_cubelist.color.b = (double)0/255;
+            Frontier_points_cubelist.lifetime = ros::Duration();
 
             unsigned long int t = 0;
+            int l = 0;
             geometry_msgs::Point q;
             for(int n = 0; n < frontier_points.size(); n++) { // changed there#######
 
@@ -793,10 +776,59 @@ int main(int argc, char **argv) {
                 t++;
             }
             ROS_INFO("Publishing %ld frontier_points", t);
-            Octomap_marker_pub.publish(Frontier_points_cubelist); //publish frontier_points############
+            
+            //int delete_points = 0;
+            Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points############
+            /*for(int i = 0; i < frontier_points_old.size(); i++){
+                frontier_old = true;
+                for (int j = 0; j < frontier_points.size(); j++){
+                     if (frontier_points_old[i]==frontier_points[j]){
+                        frontier_old=false;
+                        break;
+                     }
+                }
+                if(frontier_old){
+                    Frontier_points_delete[delete_points] = frontier_points_old[i];
+                    delete_points++;
+                }     
+            }
+
+            now_marker = ros::Time::now();
+            Frontier_points_delete.header.frame_id = "map";
+            Frontier_points_delete.header.stamp = now_marker;
+            Frontier_points_delete.ns = "frontier_points_array";
+            Frontier_points_delete.id = 0;
+            Frontier_points_delete.type = visualization_msgs::Marker::CUBE_LIST;
+            Frontier_points_delete.action = visualization_msgs::Marker::DELETE;
+            Frontier_points_delete.scale.x = octo_reso;
+            Frontier_points_delete.scale.y = octo_reso;
+            Frontier_points_delete.scale.z = octo_reso;
+            //Frontier_points_delete.color.a = 1.0;
+            //Frontier_points_delete.color.r = (double)19/255;
+            //Frontier_points_delete.color.g = 1.0f;
+            //Frontier_points_delete.color.b = (double)156/255;
+            Frontier_points_delete.lifetime = ros::Duration();
+
+            //unsigned long int t = 0;
+            l = 0;
+            geometry_msgs::Point h;
+            for(int n = 0; n < frontier_points_delete.size(); n++) { // changed there#######
+
+                h.x = frontier_points_delete[n].x();
+                h.y = frontier_points_delete[n].y();
+                h.z = frontier_points_delete[n].z();
+                Frontier_points_delete.points.push_back(h); 
+                //t++;
+            }
+
+            frontier_points_old = frontier_points;*/
+            frontier_points.clear();
+            Frontier_points_cubelist.points.clear();
+            //Frontier_points_cubelist.action = visualization_msgs::Marker::DELETE;
+            //Frontier_points_pub.publish(Frontier_points_cubelist);
 
             //vector<point3d>(frontier_points).swap(frontier_points);
-            frontier_points.clear();
+            //frontier_points.clear();
             //#############################################################################################
 
 
