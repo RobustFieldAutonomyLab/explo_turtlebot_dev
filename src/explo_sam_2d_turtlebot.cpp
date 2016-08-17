@@ -110,36 +110,142 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
     return hits;
 }
 
-vector<point3d> generate_frontier_points(const octomap::OcTree *octree) {
+vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) {
 
-    vector<point3d> frontier_points;
+    /*vector<point3d> frontier_points;
     octomap::OcTreeNode *n_cur_frontier;
+    bool frontier_true;
+    unsigned long int num_free;
 
     // find frontier points#############################
     for(octomap::OcTree::leaf_iterator n = octree->begin_leafs(octree->getTreeDepth()); n != octree->end_leafs(); ++n)
     {
+        frontier_true = false;
+        num_free = 0;
 
       if(!cur_tree_2d->isNodeOccupied(*n))
         {
          double x_cur = n.getX();
          double y_cur = n.getY();
          double z_cur = n.getZ();
-         for (double x_cur_buf = x_cur - 0.15; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso/2)
-             for (double y_cur_buf = y_cur - 0.15; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso/2)
+         for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
+             for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
                  //for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
             {
                 n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
                 if(!n_cur_frontier)
                 {
-                    frontier_points.push_back(point3d(x_cur,y_cur,z_cur));
-                 
+                    frontier_true = true;
+                   // frontier_points.push_back(point3d(x_cur,y_cur,z_cur));            
+                }
+                else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                {
+                    num_free = num_free+1;
+
                 }
 
             }
+            if(frontier_true && num_free >5 )
+            {
+                frontier_points.push_back(point3d(x_cur,y_cur,z_cur));
+            } 
         }
-    }
+    }*/
+    vector<vector<point3d>> frontier_lines;
+    vector<point3d> frontier_points;
+    octomap::OcTreeNode *n_cur_frontier;
+    bool frontier_true;
+    bool belong_old;
+    double distance;
+    //double x_frontier;
+    //double y_frontier;
+    //double z_frontier;
 
-    return frontier_points;
+    for(octomap::OcTree::leaf_iterator n = octree->begin_leafs(octree->getTreeDepth()); n != octree->end_leafs(); ++n)
+    {
+        frontier_true = false;
+        unsigned long int num_free = 0;
+
+      if(!cur_tree_2d->isNodeOccupied(*n))
+        {
+         double x_cur = n.getX();
+         double y_cur = n.getY();
+         double z_cur = n.getZ();
+         for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
+             for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
+                 //for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
+            {
+                n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
+                if(!n_cur_frontier)
+                {
+                    frontier_true = true;
+                   // frontier_points.push_back(point3d(x_cur,y_cur,z_cur));            
+                }
+                else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                {
+                    num_free++;
+
+                }
+
+            }
+            if(frontier_true && num_free >5 )
+            {
+
+                double x_frontier = x_cur;
+                double y_frontier = y_cur;
+                double z_frontier = z_cur;
+
+                if(frontier_lines.size() < 1)
+                {
+                    frontier_points.resize(1);
+                    frontier_points[0] = point3d(x_frontier,y_frontier,z_frontier);
+                    frontier_lines.push_back(frontier_points);
+                    frontier_points.clear();
+                }
+                else
+                {
+                    bool belong_old = false;
+                    unsigned long int b;
+            
+
+                    for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
+                        b++;
+                        for(vector<point3d>::size_type v = 0; v < frontier_lines[u].size(); v++){
+                            //frontier_lines.push_back(vector<point3d>());
+                            distance = sqrt(pow(frontier_lines[u][v].x()-x_frontier, 2)+pow(frontier_lines[u][v].y()-y_frontier, 2)) ;
+                            //distance = pow(distance, 0.5);
+                            ROS_INFO("Distance is %lf", distance);
+                            if(distance < 0.16){
+                               frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
+                               belong_old = true;
+                               goto next_loop;
+                            }
+
+                        }
+                    }
+                    next_loop:
+                    ROS_INFO("finish %ld points ", b);
+                    if(!belong_old){
+                               frontier_points.resize(1);
+                               frontier_points[0] = point3d(x_frontier, y_frontier, z_frontier);
+                               frontier_lines.push_back(frontier_points);
+                               frontier_points.clear();
+                    }
+                               
+
+
+                }
+
+            } 
+        }
+        
+    }
+    
+
+
+
+
+    return frontier_lines;
     //##################################################
 }
 
@@ -281,7 +387,7 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
         // cur_tree_2d->insertRay(point3d( laser_orig.x(),laser_orig.y(),laser_orig.z()), 
         //     point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z), 30.0);
     }
-    cur_tree_2d->insertPointCloud(hits, laser_orig, Kinect_360.max_range);
+    cur_tree_2d->insertPointCloud(hits, laser_orig, 5.6);
     // cur_tree_2d->updateInnerOccupancy();
     ROS_INFO("Entropy(2d map) : %f", get_free_volume(cur_tree_2d));
     cur_tree_2d->write(octomap_name_2d);
@@ -616,6 +722,7 @@ int main(int argc, char **argv) {
             CandidatesMarker_array.markers[i].color.b = 0.0;
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
+        CandidatesMarker_array.markers.clear();
         candidates.clear();
 
         // Publish the goal as a Marker in rviz
@@ -628,7 +735,7 @@ int main(int argc, char **argv) {
         marker.action = visualization_msgs::Marker::ADD;
         marker.pose.position.x = next_vp.x();
         marker.pose.position.y = next_vp.y();
-        marker.pose.position.z = next_vp.z();
+        marker.pose.position.z = 1.0;
         marker.pose.orientation.x = Goal_heading.x();
         marker.pose.orientation.y = Goal_heading.y();
         marker.pose.orientation.z = Goal_heading.z();
@@ -737,7 +844,8 @@ int main(int argc, char **argv) {
             }
             ROS_INFO("Publishing %ld free cells", w);
             Free_marker_pub.publish(Free_cubelist); //publish octomap############
-
+            unsigned long int g;
+       
             // Publish frontier points#############
             //vector<point3d> frontier_points;
             //frontier_points.clear();
@@ -746,8 +854,15 @@ int main(int argc, char **argv) {
             //ROS_INFO("Frontier has %ld points", c);
             //vector<point3d> frontier_points_old;
             //vector<point3d> frontier_points_delete;
-            vector<point3d> frontier_points=generate_frontier_points( cur_tree_2d );
-            Frontier_points_cubelist.points.resize(frontier_points.size());
+            vector<vector<point3d>> frontier_points=generate_frontier_points( cur_tree_2d );
+            
+            unsigned long int o = 0;
+            for(vector<vector<point3d>>::size_type e = 0; e < frontier_points.size(); e++) {
+                o = o+frontier_points[e].size();
+            }
+
+            Frontier_points_cubelist.points.resize(o);
+            ROS_INFO("frontier points %ld", o);
             now_marker = ros::Time::now();
             Frontier_points_cubelist.header.frame_id = "map";
             Frontier_points_cubelist.header.stamp = now_marker;
@@ -767,69 +882,24 @@ int main(int argc, char **argv) {
             unsigned long int t = 0;
             int l = 0;
             geometry_msgs::Point q;
-            for(int n = 0; n < frontier_points.size(); n++) { // changed there#######
+            for(vector<vector<point3d>>::size_type n = 0; n < frontier_points.size(); n++) { // changed there#######
+                for(vector<point3d>::size_type m = 0; m < frontier_points[n].size(); m++){
 
-                q.x = frontier_points[n].x();
-                q.y = frontier_points[n].y();
-                q.z = frontier_points[n].z();
-                Frontier_points_cubelist.points.push_back(q); 
+
+                   q.x = frontier_points[n][m].x();
+                   q.y = frontier_points[n][m].y();
+                   q.z = frontier_points[n][m].z()+octo_reso;
+                   Frontier_points_cubelist.points.push_back(q); 
+                   
+                }
                 t++;
             }
-            ROS_INFO("Publishing %ld frontier_points", t);
+            ROS_INFO("Publishing %ld frontier_lines", t);
             
             //int delete_points = 0;
             Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points############
-            /*for(int i = 0; i < frontier_points_old.size(); i++){
-                frontier_old = true;
-                for (int j = 0; j < frontier_points.size(); j++){
-                     if (frontier_points_old[i]==frontier_points[j]){
-                        frontier_old=false;
-                        break;
-                     }
-                }
-                if(frontier_old){
-                    Frontier_points_delete[delete_points] = frontier_points_old[i];
-                    delete_points++;
-                }     
-            }
-
-            now_marker = ros::Time::now();
-            Frontier_points_delete.header.frame_id = "map";
-            Frontier_points_delete.header.stamp = now_marker;
-            Frontier_points_delete.ns = "frontier_points_array";
-            Frontier_points_delete.id = 0;
-            Frontier_points_delete.type = visualization_msgs::Marker::CUBE_LIST;
-            Frontier_points_delete.action = visualization_msgs::Marker::DELETE;
-            Frontier_points_delete.scale.x = octo_reso;
-            Frontier_points_delete.scale.y = octo_reso;
-            Frontier_points_delete.scale.z = octo_reso;
-            //Frontier_points_delete.color.a = 1.0;
-            //Frontier_points_delete.color.r = (double)19/255;
-            //Frontier_points_delete.color.g = 1.0f;
-            //Frontier_points_delete.color.b = (double)156/255;
-            Frontier_points_delete.lifetime = ros::Duration();
-
-            //unsigned long int t = 0;
-            l = 0;
-            geometry_msgs::Point h;
-            for(int n = 0; n < frontier_points_delete.size(); n++) { // changed there#######
-
-                h.x = frontier_points_delete[n].x();
-                h.y = frontier_points_delete[n].y();
-                h.z = frontier_points_delete[n].z();
-                Frontier_points_delete.points.push_back(h); 
-                //t++;
-            }
-
-            frontier_points_old = frontier_points;*/
             frontier_points.clear();
             Frontier_points_cubelist.points.clear();
-            //Frontier_points_cubelist.action = visualization_msgs::Marker::DELETE;
-            //Frontier_points_pub.publish(Frontier_points_cubelist);
-
-            //vector<point3d>(frontier_points).swap(frontier_points);
-            //frontier_points.clear();
-            //#############################################################################################
 
 
             // Send out results to file.
