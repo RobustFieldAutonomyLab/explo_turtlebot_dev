@@ -157,6 +157,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
     bool frontier_true;
     bool belong_old;
     double distance;
+    double R1 = 0.4;
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -215,7 +216,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
                             distance = sqrt(pow(frontier_lines[u][0].x()-x_frontier, 2)+pow(frontier_lines[u][0].y()-y_frontier, 2)) ;
                             //distance = pow(distance, 0.5);
                            // ROS_INFO("Distance is %lf", distance);
-                            if(distance < 0.3){
+                            if(distance < R1){
                                frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
                                belong_old = true;
                                break;
@@ -260,7 +261,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_lines, point3d sensor_orig ) {
     double R = 0.2;   // Robot step, in meters.
-    double n = 12;
+    double n = 1;
     octomap::OcTreeNode *n_cur; // What is *n_cur################
     vector<pair<point3d, point3d>> candidates;
     double z = sensor_orig.z();                // fixed 
@@ -276,11 +277,11 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
         //for(double yaw = initial_yaw-PI; yaw < initial_yaw+PI; yaw += PI*2 / n ) {
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
 
-            double initial_yaw = atan2(sensor_orig.y()-frontier_lines[u][0].y(), sensor_orig.x() - frontier_lines[u][0].x());
+            double initial_yaw = atan2(frontier_lines[u][0].y()-sensor_orig.y(),  frontier_lines[u][0].x()-sensor_orig.x() );
 
             for(double yaw = initial_yaw; yaw < initial_yaw+2*PI; yaw += PI*2 / n){
-                x = frontier_lines[u][0].x() + R * cos(yaw);
-                y = frontier_lines[u][0].y() + R * sin(yaw);
+                x = frontier_lines[u][0].x() - R * cos(yaw);
+                y = frontier_lines[u][0].y() - R * sin(yaw);
 
             
                 /*x_sum = 0;
@@ -300,27 +301,35 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
 
                 // for every candidate goal, check surroundings
                 bool candidate_valid = true;
-                for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso/2) 
-                    for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso/2)
-                        for (double z_buf = z - 0.2; z_buf < z + 0.2; z_buf += octo_reso/2)
-                {
-                    n_cur = cur_tree_2d->search(point3d(x_buf, y_buf, z_buf));
-                    if(!n_cur) {
-                         ROS_WARN("Part of (%f, %f, %f) unknown", x_buf, y_buf, z_buf);
-                         candidate_valid = false; // changede##########################
+
+                n_cur = cur_tree_2d->search(point3d(x, y, z));
+                if(!n_cur) {
+                        candidate_valid = false;
+                    }
+                else {
+                            for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
+                                for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
+                                    //for (double z_buf = z - 0.2; z_buf < z + 0.2; z_buf += octo_reso/2)
+                            {
+                                n_cur = cur_tree_2d->search(point3d(x_buf, y_buf, z));
+                                if(!n_cur) {
+                                     //ROS_WARN("Part of (%f, %f, %f) unknown", x_buf, y_buf, z_buf);
+                                     //candidate_valid = false; // changede##########################
+                                    continue;
                     
-                    }                                 
-                    else if(cur_tree_2d->isNodeOccupied(n_cur)) {
-                            // ROS_WARN("Part of (%f, %f, %f) occupied", x_buf, y_buf, z_buf);
-                            candidate_valid = false;
-                    }  
-                }
+                                }                                 
+                                if(cur_tree_2d->isNodeOccupied(n_cur)) {
+                                        // ROS_WARN("Part of (%f, %f, %f) occupied", x_buf, y_buf, z_buf);
+                                       candidate_valid = false;
+                                }  
+                            }
+                        }
                 if (candidate_valid)
                 {
                     candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
                 }
-                else
-                    ROS_WARN("Part of Candidtae(%f, %f, %f) occupied", x, y, z);
+               // else
+                    //ROS_WARN("Part of Candidtae(%f, %f, %f) occupied or unknow", x, y, z);
             }
             
         }
@@ -458,7 +467,7 @@ int main(int argc, char **argv) {
 
     visualization_msgs::MarkerArray CandidatesMarker_array;
     visualization_msgs::Marker OctomapOccupied_cubelist;
-    //visualization_msgs::Marker Frontier_points_cubelist;
+    visualization_msgs::Marker Frontier_points_cubelist;
     //visualization_msgs::Marker Frontier_points_delete;
     visualization_msgs::Marker Free_cubelist;
     //bool frontier_old;
@@ -651,7 +660,7 @@ int main(int argc, char **argv) {
             start_over:
             
             vector<vector<point3d>> frontier_lines=generate_frontier_points( cur_tree_2d );
-            unsigned long int t = 0;
+            /*unsigned long int t = 0;
             
             visualization_msgs::Marker Frontier_points_cubelist[frontier_lines.size()];
             //try if really need to resize#########################################################
@@ -697,12 +706,55 @@ int main(int argc, char **argv) {
                 Frontier_points_cubelist[n].points.clear(); 
             }
             
-            ROS_INFO("Publishing %ld frontier_lines", t);
+            ROS_INFO("Publishing %ld frontier_lines", t);*/
             
             //int delete_points = 0;
             
             //frontier_lines.clear();//in the next line
+            unsigned long int o = 0;
+            for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines.size(); e++) {
+                o = o+frontier_lines[e].size();
+            }
+
+            Frontier_points_cubelist.points.resize(o);
+            ROS_INFO("frontier points %ld", o);
+            now_marker = ros::Time::now();
+            Frontier_points_cubelist.header.frame_id = "map";
+            Frontier_points_cubelist.header.stamp = now_marker;
+            Frontier_points_cubelist.ns = "frontier_points_array";
+            Frontier_points_cubelist.id = 0;
+            Frontier_points_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
+            Frontier_points_cubelist.action = visualization_msgs::Marker::ADD;
+            Frontier_points_cubelist.scale.x = octo_reso;
+            Frontier_points_cubelist.scale.y = octo_reso;
+            Frontier_points_cubelist.scale.z = octo_reso;
+            Frontier_points_cubelist.color.a = 1.0;
+            Frontier_points_cubelist.color.r = (double)255/255;
+            Frontier_points_cubelist.color.g = 0;
+            Frontier_points_cubelist.color.b = (double)0/255;
+            Frontier_points_cubelist.lifetime = ros::Duration();
+
+            unsigned long int t = 0;
+            int l = 0;
+            geometry_msgs::Point q;
+            for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) { // changed there#######
+                for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
+
+
+                   q.x = frontier_lines[n][m].x();
+                   q.y = frontier_lines[n][m].y();
+                   q.z = frontier_lines[n][m].z()+octo_reso;
+                   Frontier_points_cubelist.points.push_back(q); 
+                   
+                }
+                t++;
+            }
+            ROS_INFO("Publishing %ld frontier_lines", t);
             
+            //int delete_points = 0;
+            Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points############
+            //frontier_lines.clear();
+            Frontier_points_cubelist.points.clear();            
 
 
         // Generate Candidates
@@ -754,7 +806,7 @@ int main(int argc, char **argv) {
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
-            MIs[i] = calc_MI(cur_tree, c.first, hits, before)-30*sqrt(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2));
+            MIs[i] = calc_MI(cur_tree, c.first, hits, before)/(sqrt(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2))+1);
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
 
