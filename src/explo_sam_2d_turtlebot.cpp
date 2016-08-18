@@ -204,6 +204,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     double z = sensor_orig.z();
     double x, y;
     double yaw;
+    double distance_can;
 
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
 
@@ -216,11 +217,28 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                 // for every candidate goal, check surroundings
                 bool candidate_valid = true;
 
+                distance_can =sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2));
+               if(distance_can < 0.25){
+                  candidate_valid = false;
+                  
+                 }
+           else{
+                for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++)
+                    for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
+                        distance_can = sqrt(pow(x - frontier_lines[n][m].x(),2) + pow(y - frontier_lines[n][m].y(),2));
+                        if(distance_can < 0.25){
+                            candidate_valid = false;
+                            goto candidates_go;
+                        }
+                    }
+                
+                    
                 n_cur = cur_tree_2d->search(point3d(x, y, z));
+
                 if(!n_cur) {
                         candidate_valid = false;
-                    }
-                else {
+                        }
+                else{
                             for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
                                 for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
                                     //for (double z_buf = z - 0.2; z_buf < z + 0.2; z_buf += octo_reso/2)
@@ -233,7 +251,10 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                                        candidate_valid = false;
                                 }  
                             }
-                        }
+                    }
+                }
+                candidates_go:
+
                 if (candidate_valid)
                 {
                     candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
