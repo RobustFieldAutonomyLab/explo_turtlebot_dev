@@ -1,0 +1,2 @@
+DA Step: 1  | Current Entropy: 1.847
+DA Step: 2  | Current Entropy: 18.083

@@ -69,8 +69,6 @@ struct SensorModel {
                 InitialVector = point3d(1.0, 0.0, 0.0);
                 InitialVector.rotate_IP(0.0, j * angle_inc_vel, i * angle_inc_hor);
                 SensorRays.push_back(InitialVector);
-                // pitch_yaws.push_back(make_pair(j * angle_inc_vel, i * angle_inc_hor));
-                // pitch_yaws.push_back(make_pair(j * angle_inc_vel, i * angle_inc_hor));
         }
     }
 }; 
@@ -94,13 +92,13 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
     octomap::Pointcloud hits;
 
     octomap::Pointcloud SensorRays_copy;
-    SensorRays_copy.push_back(Kinect_360.SensorRays);// what is SensorRay?#########
+    SensorRays_copy.push_back(Kinect_360.SensorRays);
     SensorRays_copy.rotate(0.0,0.0,direction.z());
     point3d end;
     // #pragma omp parallel for
     for(int i = 0; i < SensorRays_copy.size(); i++) {
         if(octree->castRay(position, SensorRays_copy.getPoint(i), end, true, Kinect_360.max_range)) {
-            // hits.push_back(end);
+            
         } else {
             end = SensorRays_copy.getPoint(i) * Kinect_360.max_range;
             end += position;
@@ -112,52 +110,13 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
 
 vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) {
 
-    /*vector<point3d> frontier_points;
-    octomap::OcTreeNode *n_cur_frontier;
-    bool frontier_true;
-    unsigned long int num_free;
-
-    // find frontier points#############################
-    for(octomap::OcTree::leaf_iterator n = octree->begin_leafs(octree->getTreeDepth()); n != octree->end_leafs(); ++n)
-    {
-        frontier_true = false;
-        num_free = 0;
-
-      if(!cur_tree_2d->isNodeOccupied(*n))
-        {
-         double x_cur = n.getX();
-         double y_cur = n.getY();
-         double z_cur = n.getZ();
-         for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
-             for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
-                 //for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
-            {
-                n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
-                if(!n_cur_frontier)
-                {
-                    frontier_true = true;
-                   // frontier_points.push_back(point3d(x_cur,y_cur,z_cur));            
-                }
-                else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
-                {
-                    num_free = num_free+1;
-
-                }
-
-            }
-            if(frontier_true && num_free >5 )
-            {
-                frontier_points.push_back(point3d(x_cur,y_cur,z_cur));
-            } 
-        }
-    }*/
     vector<vector<point3d>> frontier_lines;
     vector<point3d> frontier_points;
     octomap::OcTreeNode *n_cur_frontier;
     bool frontier_true;
     bool belong_old;
     double distance;
-    double R1 = 0.4;
+    double R1 = 0.6;
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -174,13 +133,11 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
          double z_cur = n.getZ();
          for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
              for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
-                 //for (double z_cur_buf = z_cur - 0.05; z_cur_buf < z_cur + 0.05; z_cur_buf += octo_reso/2)
             {
                 n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
                 if(!n_cur_frontier)
                 {
-                    frontier_true = true;
-                   // frontier_points.push_back(point3d(x_cur,y_cur,z_cur));            
+                    frontier_true = true;            
                 }
                 else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
                 {
@@ -205,49 +162,29 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
                 }
                 else
                 {
-                    bool belong_old = false;
-                    //unsigned long int b;
-            
+                    bool belong_old = false;            
 
                     for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
-                        //b++;
-                        //for(vector<point3d>::size_type v = 0; v < frontier_lines[u].size(); v++){
-                            //frontier_lines.push_back(vector<point3d>());
                             distance = sqrt(pow(frontier_lines[u][0].x()-x_frontier, 2)+pow(frontier_lines[u][0].y()-y_frontier, 2)) ;
-                            //distance = pow(distance, 0.5);
-                           // ROS_INFO("Distance is %lf", distance);
                             if(distance < R1){
                                frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
                                belong_old = true;
                                break;
-                               //goto next_loop;
                             }
-                        //}
                     }
-                    //next_loop:
-                    //ROS_INFO("finish %ld points ", b);
                     if(!belong_old){
                                frontier_points.resize(1);
                                frontier_points[0] = point3d(x_frontier, y_frontier, z_frontier);
                                frontier_lines.push_back(frontier_points);
                                frontier_points.clear();
-                    }
-                               
-
-
+                    }                              
                 }
 
             } 
         }
         
     }
-    
-
-
-
-
     return frontier_lines;
-    //##################################################
 }
 
 
@@ -260,21 +197,14 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_lines, point3d sensor_orig ) {
-    double R = 0.2;   // Robot step, in meters.
-    double n = 1;
-    octomap::OcTreeNode *n_cur; // What is *n_cur################
+    double R = 0.5;   // Robot step, in meters.
+    double n = 6;
+    octomap::OcTreeNode *n_cur;
     vector<pair<point3d, point3d>> candidates;
-    double z = sensor_orig.z();                // fixed 
+    double z = sensor_orig.z();
     double x, y;
-    //double x_sum, y_sum;
-    //double x_yaw, y_yaw;
     double yaw;
 
-    //##################################################
-
-
-    // for(z = sensor_orig.z() - 1; z <= sensor_orig.z() + 1; z += 1)
-        //for(double yaw = initial_yaw-PI; yaw < initial_yaw+PI; yaw += PI*2 / n ) {
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
 
             double initial_yaw = atan2(frontier_lines[u][0].y()-sensor_orig.y(),  frontier_lines[u][0].x()-sensor_orig.x() );
@@ -282,22 +212,6 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
             for(double yaw = initial_yaw; yaw < initial_yaw+2*PI; yaw += PI*2 / n){
                 x = frontier_lines[u][0].x() - R * cos(yaw);
                 y = frontier_lines[u][0].y() - R * sin(yaw);
-
-            
-                /*x_sum = 0;
-                y_sum = 0;
-                for(vector<point3d>::size_type v = 0; v < frontier_lines[u].size(); v++){
-                    x_sum = x_sum + frontier_lines[u][v].x();
-                    y_sum = y_sum + frontier_lines[u][v].y();
-                }
-                x_yaw = x_sum/frontier_lines.size();
-                y_yaw = y_sum/frontier_lines.size();
-                x = (sensor_orig.x()*2 + x_sum)/(frontier_lines[u].size() + 2);
-                y = (sensor_orig.y()*2 + y_sum)/(frontier_lines[u].size() + 2);
-                yaw = atan2(y - y_yaw, x - x_yaw);*/
-                //x = sensor_orig.x() + R * cos(yaw);
-                //y = sensor_orig.y() + R * sin(yaw);
-
 
                 // for every candidate goal, check surroundings
                 bool candidate_valid = true;
@@ -313,13 +227,9 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                             {
                                 n_cur = cur_tree_2d->search(point3d(x_buf, y_buf, z));
                                 if(!n_cur) {
-                                     //ROS_WARN("Part of (%f, %f, %f) unknown", x_buf, y_buf, z_buf);
-                                     //candidate_valid = false; // changede##########################
                                     continue;
-                    
                                 }                                 
                                 if(cur_tree_2d->isNodeOccupied(n_cur)) {
-                                        // ROS_WARN("Part of (%f, %f, %f) occupied", x_buf, y_buf, z_buf);
                                        candidate_valid = false;
                                 }  
                             }
@@ -328,8 +238,9 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                 {
                     candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
                 }
-               // else
-                    //ROS_WARN("Part of Candidtae(%f, %f, %f) occupied or unknow", x, y, z);
+                else{
+                    ROS_WARN("Part of Candidtae(%f, %f, %f) occupied or unknow", x, y, z);
+                }
             }
             
         }
@@ -345,24 +256,7 @@ double calc_MI(const octomap::OcTree *octree, const point3d &sensor_orig, const 
     return after - before;
 }
 
-// void RPY2Quaternion(double roll, double pitch, double yaw, double *x, double *y, double *z, double *w) {
-//     double cr2, cp2, cy2, sr2, sp2, sy2;
-//     cr2 = cos(roll*0.5);
-//     cp2 = cos(pitch*0.5);
-//     cy2 = cos(yaw*0.5);
-
-//     sr2 = -sin(roll*0.5);
-//     sp2 = -sin(pitch*0.5);
-//     sy2 = sin(yaw*0.5);
-
-//     *w = cr2*cp2*cy2 + sr2*sp2*sy2;
-//     *x = sr2*cp2*cy2 - cr2*sp2*sy2;
-//     *y = cr2*sp2*cy2 + sr2*cp2*sy2;
-//     *z = cr2*cp2*sy2 - sr2*sp2*cy2;
-// }
-
-
-void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {  // need to change########
+void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {
     pcl::PCLPointCloud2 cloud2;
     pcl_conversions::toPCL(*cloud2_msg, cloud2);
     PointCloud* cloud (new PointCloud);
@@ -375,7 +269,6 @@ void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {  /
     {
         ros::Duration(0.01).sleep();
     }
-    // hits.push_back(point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z));
     // Insert points into octomap one by one...
     for (int i = 1; i< cloud->width; i++)
     {
@@ -384,13 +277,10 @@ void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {  /
             if(isnan(cloud->at(i,j).x)) continue;
             if(cloud->at(i,j).z < -1.0)    continue;  
             hits.push_back(point3d(cloud->at(i,j).x, cloud->at(i,j).y, cloud->at(i,j).z));
-            // cur_tree->insertRay(point3d( velo_orig.x(),velo_orig.y(),velo_orig.z()), 
-            //     point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z), Velodyne_puck.max_range);
         }
     }
 
     cur_tree->insertPointCloud(hits, velo_orig, Kinect_360.max_range);
-    // cur_tree->updateInnerOccupancy();
     ROS_INFO("Entropy(3d map) : %f", get_free_volume(cur_tree));
 
     cur_tree->write(octomap_name_3d);
@@ -418,11 +308,8 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
     {
         // if(isnan(cloud->at(j).x)) continue;
         hits.push_back(point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z));
-        // cur_tree_2d->insertRay(point3d( laser_orig.x(),laser_orig.y(),laser_orig.z()), 
-        //     point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z), 30.0);
     }
     cur_tree_2d->insertPointCloud(hits, laser_orig, 5.6);
-    // cur_tree_2d->updateInnerOccupancy();
     ROS_INFO("Entropy(2d map) : %f", get_free_volume(cur_tree_2d));
     cur_tree_2d->write(octomap_name_2d);
     delete cloud;
@@ -433,8 +320,6 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
 int main(int argc, char **argv) {
     ros::init(argc, argv, "explo_sam_2d_turtlebot");
     ros::NodeHandle nh;
-    // ros::Subscriber octomap_sub;
-    // octomap_sub = nh.subscribe<octomap_msgs::Octomap>("/octomap_binary", 10, octomap_callback);
 
     // Initialize time
     time_t rawtime;
@@ -459,7 +344,7 @@ int main(int argc, char **argv) {
     ros::Publisher Octomap_marker_pub = nh.advertise<visualization_msgs::Marker>("Occupied_MarkerArray", 1);
     ros::Publisher Frontier_points_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points", 1);//changed here#######
     ros::Publisher Free_marker_pub = nh.advertise<visualization_msgs::Marker>("Free_MarkerArray", 1);
-
+    ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
 
     tf_listener = new tf::TransformListener();
     tf::StampedTransform transform;
@@ -468,9 +353,10 @@ int main(int argc, char **argv) {
     visualization_msgs::MarkerArray CandidatesMarker_array;
     visualization_msgs::Marker OctomapOccupied_cubelist;
     visualization_msgs::Marker Frontier_points_cubelist;
-    //visualization_msgs::Marker Frontier_points_delete;
     visualization_msgs::Marker Free_cubelist;
-    //bool frontier_old;
+    geometry_msgs::Twist twist_cmd;
+
+
 
     
     ros::Time now_marker = ros::Time::now();
@@ -478,7 +364,6 @@ int main(int argc, char **argv) {
     double R_velo, P_velo, Y_velo;
 
     // Initialize parameters 
-    // ros::Rate r(10); // 1 hz
     int max_idx = 0;
 
     position = point3d(0, 0, 0.0);
@@ -488,11 +373,13 @@ int main(int argc, char **argv) {
     octomap::OcTree new_tree_2d(octo_reso);
     cur_tree = &new_tree;
     cur_tree_2d = &new_tree_2d;
+    point3d next_vp;
 
     bool got_tf = false;
+    bool arrived;
 
     //Update the pose of velodyne from predefined tf.
-    got_tf = false;
+    /*got_tf = false;
     while(!got_tf){
     try{
         tf_listener->lookupTransform("/base_link", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
@@ -506,13 +393,61 @@ int main(int argc, char **argv) {
         ROS_WARN("Wait for tf: initial pose of Kinect"); 
         ros::Duration(0.05).sleep();
         } 
-    }   
+    }   */
     
      //Rotate Sensor Model based on Velodyn Pose
-    Kinect_360.SensorRays.rotate(R_velo, P_velo, Y_velo);
+    //Kinect_360.SensorRays.rotate(R_velo, P_velo, Y_velo);
     
     // Update the initial location of the robot
-    got_tf = false;
+    for(int o =0; o < 6; o++){
+        // Update the pose of the robot
+        got_tf = false;
+        while(!got_tf){
+        try{
+            tf_listener->lookupTransform("/map", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
+            velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+            got_tf = true;
+        }
+        catch (tf::TransformException ex) {
+            ROS_WARN("Wait for tf: velodyne to map"); 
+        } 
+        ros::Duration(0.05).sleep();
+        }
+
+        got_tf = false;
+        while(!got_tf){
+        try{
+            tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
+            laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+            got_tf = true;
+        }
+        catch (tf::TransformException ex) {
+            ROS_WARN("Wait for tf: laser to map"); 
+        } 
+        ros::Duration(0.05).sleep();
+        }
+
+        // Take a Scan
+        ros::spinOnce();
+
+        // Rotate another 60 degrees
+        twist_cmd.linear.x = twist_cmd.linear.y = twist_cmd.angular.z = 0;
+        ros::Time start_turn = ros::Time::now();
+
+        ROS_WARN("Rotate 60 degrees");
+        while (ros::Time::now() - start_turn < ros::Duration(2.6)){ // turning duration - second
+        twist_cmd.angular.z = 0.4; // turning speed
+        // turning angle = turning speed * turning duration / 3.14 * 180
+        pub_twist.publish(twist_cmd);
+        ros::Duration(0.05).sleep();
+        }
+        // stop
+        twist_cmd.angular.z = 0;
+        pub_twist.publish(twist_cmd);
+
+    }
+
+    /*got_tf = false;
     while(!got_tf){
     try{
         tf_listener->lookupTransform("/map", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect##############
@@ -613,7 +548,7 @@ int main(int argc, char **argv) {
 
     // Rotate another 60 degrees
     Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233);
-    arrived = goToDest(laser_orig, Goal_heading);
+    arrived = goToDest(laser_orig, Goal_heading);*/
 
     // Update the pose of the robot
     got_tf = false;
@@ -649,14 +584,6 @@ int main(int argc, char **argv) {
 
     while (ros::ok())
     {
-                    // Publish frontier points#############
-            //vector<point3d> frontier_points;
-            //frontier_points.clear();
-            //Frontier_points_cubelist.action=visualization_msgs::Marker::DELETE;
-            //long int c = Frontier_points_cubelist.size();
-            //ROS_INFO("Frontier has %ld points", c);
-            //vector<point3d> frontier_points_old;
-            //vector<point3d> frontier_points_delete;
             start_over:
             
             vector<vector<point3d>> frontier_lines=generate_frontier_points( cur_tree_2d );
@@ -737,7 +664,7 @@ int main(int argc, char **argv) {
             unsigned long int t = 0;
             int l = 0;
             geometry_msgs::Point q;
-            for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) { // changed there#######
+            for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) { 
                 for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
 
 
@@ -751,9 +678,7 @@ int main(int argc, char **argv) {
             }
             ROS_INFO("Publishing %ld frontier_lines", t);
             
-            //int delete_points = 0;
-            Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points############
-            //frontier_lines.clear();
+            Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points
             Frontier_points_cubelist.points.clear();            
 
 
@@ -775,10 +700,20 @@ int main(int argc, char **argv) {
             } 
             ros::Duration(0.05).sleep();
             }
-            // Rotate negative along Yaw for 30 deg to look for more open areas
-            Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle() - PI/6); 
-            Goal_heading.normalize();
-            arrived = goToDest(laser_orig, Goal_heading); // order to move_base
+            // Rotate another 60 degrees
+            twist_cmd.linear.x = twist_cmd.linear.y = twist_cmd.angular.z = 0;
+            ros::Time start_turn = ros::Time::now();
+
+            ROS_WARN("Rotate 60 degrees");
+            while (ros::Time::now() - start_turn < ros::Duration(2.6)){ // turning duration - second
+            twist_cmd.angular.z = 0.4; // turning speed
+            // turning angle = turning speed * turning duration / 3.14 * 180
+            pub_twist.publish(twist_cmd);
+            ros::Duration(0.05).sleep();
+            }
+            // stop
+            twist_cmd.angular.z = 0;
+            pub_twist.publish(twist_cmd);
             vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig);
         }
         
@@ -823,7 +758,6 @@ int main(int argc, char **argv) {
               }
            max_order[p] = j;
            }
-       // ROS_INFO("max_order : %ld %ld %ld %ld %ld %ld %3.2f %3.2f %3.2f %3.2f %3.2f %3.2f", max_order[0], max_order[1], max_order[2], max_order[3], max_order[4], max_order[5], MIs[max_order[0]], MIs[max_order[1]], MIs[max_order[2]], MIs[max_order[3]], MIs[max_order[4]], MIs[max_order[5]]);
         
         p = candidates.size()-1;
         loop:
@@ -894,7 +828,7 @@ int main(int argc, char **argv) {
 
         // Send the Robot 
         Goal_heading.setRPY(0.0, 0.0, candidates[max_idx].second.yaw());
-        arrived = goToDest(next_vp, Goal_heading); // What is goToDest ?######
+        arrived = goToDest(next_vp, Goal_heading);
 
         if(arrived)
         {
@@ -988,61 +922,6 @@ int main(int argc, char **argv) {
             ROS_INFO("Publishing %ld free cells", w);
             Free_marker_pub.publish(Free_cubelist); //publish octomap############
             unsigned long int g;
-       
-            /*// Publish frontier points#############
-            //vector<point3d> frontier_points;
-            //frontier_points.clear();
-            //Frontier_points_cubelist.action=visualization_msgs::Marker::DELETE;
-            //long int c = Frontier_points_cubelist.size();
-            //ROS_INFO("Frontier has %ld points", c);
-            //vector<point3d> frontier_points_old;
-            //vector<point3d> frontier_points_delete;
-            vector<vector<point3d>> frontier_points=generate_frontier_points( cur_tree_2d );
-            
-            unsigned long int o = 0;
-            for(vector<vector<point3d>>::size_type e = 0; e < frontier_points.size(); e++) {
-                o = o+frontier_points[e].size();
-            }
-
-            Frontier_points_cubelist.points.resize(o);
-            ROS_INFO("frontier points %ld", o);
-            now_marker = ros::Time::now();
-            Frontier_points_cubelist.header.frame_id = "map";
-            Frontier_points_cubelist.header.stamp = now_marker;
-            Frontier_points_cubelist.ns = "frontier_points_array";
-            Frontier_points_cubelist.id = 0;
-            Frontier_points_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
-            Frontier_points_cubelist.action = visualization_msgs::Marker::ADD;
-            Frontier_points_cubelist.scale.x = octo_reso;
-            Frontier_points_cubelist.scale.y = octo_reso;
-            Frontier_points_cubelist.scale.z = octo_reso;
-            Frontier_points_cubelist.color.a = 1.0;
-            Frontier_points_cubelist.color.r = (double)255/255;
-            Frontier_points_cubelist.color.g = 0;
-            Frontier_points_cubelist.color.b = (double)0/255;
-            Frontier_points_cubelist.lifetime = ros::Duration();
-
-            unsigned long int t = 0;
-            int l = 0;
-            geometry_msgs::Point q;
-            for(vector<vector<point3d>>::size_type n = 0; n < frontier_points.size(); n++) { // changed there#######
-                for(vector<point3d>::size_type m = 0; m < frontier_points[n].size(); m++){
-
-
-                   q.x = frontier_points[n][m].x();
-                   q.y = frontier_points[n][m].y();
-                   q.z = frontier_points[n][m].z()+octo_reso;
-                   Frontier_points_cubelist.points.push_back(q); 
-                   
-                }
-                t++;
-            }
-            ROS_INFO("Publishing %ld frontier_lines", t);
-            
-            //int delete_points = 0;
-            Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points############
-            frontier_points.clear();
-            Frontier_points_cubelist.points.clear(); */
 
 
             // Send out results to file.
@@ -1054,7 +933,7 @@ int main(int argc, char **argv) {
         else
         {
             ROS_ERROR("Failed to navigate to goal");
-            // if max MI candidates can't be arrived, try second max MI candidates
+            /*/ if max MI candidates can't be arrived, try second max MI candidates
 
             // Get the current heading
             got_tf = false;
@@ -1073,7 +952,7 @@ int main(int argc, char **argv) {
             Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle() - PI/6);
             Goal_heading.normalize();
             arrived = goToDest(laser_orig, Goal_heading); // order to move_base
-            ros::spinOnce();
+            ros::spinOnce();*/
             
 
             if(p == 0){
@@ -1082,7 +961,6 @@ int main(int argc, char **argv) {
             p--;
             goto loop;
         }
-        // r.sleep();
     }
     nh.shutdown();          
     return 0;
