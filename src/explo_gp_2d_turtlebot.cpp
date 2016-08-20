@@ -22,6 +22,8 @@
 #include <octomap_msgs/GetOctomap.h>
 #include "navigation_utils.h"
 #include <ros/callback_queue.h>
+#include "gpregressor.h"
+#include "covMaterniso3.h"
 
 
 using namespace std;
@@ -259,7 +261,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                 if(candidate_valid){
                     for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
                                 for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
-                                    for (double z_buf = 0.2; z_buf <=0.4; z_buf += octo_reso)
+                                    for (double z_buf = 0.2; z_buf <0.4; z_buf += octo_reso)
                             {
                                 n_cur_3d = cur_tree->search(point3d(x_buf, y_buf, z_buf));
                                 if(!n_cur_3d) {
@@ -285,6 +287,99 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
         }
     return candidates;
 }
+
+//generate gp pose
+vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_lines, point3d sensor_orig ) {
+    double R = 0.5;   // Robot step, in meters.
+    double n = 12;
+    octomap::OcTreeNode *n_cur;
+    octomap::OcTreeNode *n_cur_3d;
+    vector<pair<point3d, point3d>> candidates;
+    double z = sensor_orig.z();
+    double x, y;
+    double yaw;
+    double distance_can;
+
+        for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
+
+            double initial_yaw = atan2(frontier_lines[u][0].y()-sensor_orig.y(),  frontier_lines[u][0].x()-sensor_orig.x() );
+
+            for(double yaw = initial_yaw; yaw < initial_yaw+2*PI; yaw += PI*2 / n){
+                x = frontier_lines[u][0].x() - R * cos(yaw);
+                y = frontier_lines[u][0].y() - R * sin(yaw);
+
+                // for every candidate goal, check surroundings
+                bool candidate_valid = true;
+
+                distance_can =sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2));
+               if(distance_can < 0.25){
+                  candidate_valid = false;
+                  
+                 }
+           else{
+                for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++)
+                    for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
+                        distance_can = sqrt(pow(x - frontier_lines[n][m].x(),2) + pow(y - frontier_lines[n][m].y(),2));
+                        if(distance_can < 0.25){
+                            candidate_valid = false;
+                            goto candidates_go;
+                        }
+                    }
+                
+                    
+                n_cur = cur_tree_2d->search(point3d(x, y, z));
+                n_cur_3d = cur_tree->search(point3d(x, y, z));
+
+
+                if(!n_cur) {
+                        candidate_valid = false;
+                        }
+                else{
+                            for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
+                                for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
+                                    //for (double z_buf = z - 0.2; z_buf < z + 0.2; z_buf += octo_reso/2)
+                            {
+                                n_cur = cur_tree_2d->search(point3d(x_buf, y_buf, z));
+                                if(!n_cur) {
+                                    continue;
+                                }                                 
+                                if(cur_tree_2d->isNodeOccupied(n_cur)) {
+                                       candidate_valid = false;
+                                }  
+                            }
+                    }
+                }
+                if(candidate_valid){
+                    for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
+                                for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
+                                    for (double z_buf = 0.2; z_buf <0.4; z_buf += octo_reso)
+                            {
+                                n_cur_3d = cur_tree->search(point3d(x_buf, y_buf, z_buf));
+                                if(!n_cur_3d) {
+                                    continue;
+                                }                                 
+                                if(cur_tree->isNodeOccupied(n_cur_3d)) {
+                                       candidate_valid = false;
+                                }  
+                            }
+                }
+
+                candidates_go:
+
+                if (candidate_valid)
+                {
+                    candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
+                }
+                else{
+                    ROS_WARN("Part of Candidtae(%f, %f, %f) occupied or unknow", x, y, z);
+                }
+            }
+            
+        }
+    return candidates;
+}
+
+
 // Calculate Mutual Information. Input: octree, sensor_orig, hits, before
 double calc_MI(const octomap::OcTree *octree, const point3d &sensor_orig, const octomap::Pointcloud &hits, const double before) {
     auto octree_copy = new octomap::OcTree(*octree);
@@ -366,12 +461,12 @@ int main(int argc, char **argv) {
     char buffer[80];
     time (&rawtime);
     timeinfo = localtime(&rawtime);
-    strftime(buffer,80,"Trajectory_%R_%S_%m%d_DA.txt",timeinfo);
+    strftime(buffer,80,"Trajectory_gp_%R_%S_%m%d_DA.txt",timeinfo);
     std::string logfilename(buffer);
     std::cout << logfilename << endl;
-    strftime(buffer,80,"octomap_2d_%R_%S_%m%d_DA.ot",timeinfo);
+    strftime(buffer,80,"octomap_gp_2d_%R_%S_%m%d_DA.ot",timeinfo);
     octomap_name_2d = buffer;
-    strftime(buffer,80,"octomap_3d_%R_%S_%m%d_DA.ot",timeinfo);
+    strftime(buffer,80,"octomap_gp_3d_%R_%S_%m%d_DA.ot",timeinfo);
     octomap_name_3d = buffer;
 
 
@@ -622,6 +717,8 @@ int main(int argc, char **argv) {
     // Take a Fourth Scan
     ros::spinOnce();
 
+    double train_time, test_time;
+
     // steps robot taken, counter
     int robot_step_counter = 0;
 
@@ -726,8 +823,12 @@ int main(int argc, char **argv) {
 
 
         // Generate Candidates
-        vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig); // what is transform ?#####
+        vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig); 
+        // Generate Testing poses
+        vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, laser_orig);
+
         frontier_lines.clear();
+
         while(candidates.size() <= 1)
         {
             // Get the current heading
@@ -764,9 +865,8 @@ int main(int argc, char **argv) {
         vector<double> MIs(candidates.size());
         double before = get_free_volume(cur_tree);
         max_idx = 0;
-        long int max_order[candidates.size()];
+
         unsigned int p = 0;
-        int m=0;
 
         // for every candidate...
         double Secs_CastRay, Secs_InsertRay, Secs_tmp;  //What are those? ####
@@ -776,7 +876,7 @@ int main(int argc, char **argv) {
         #pragma omp parallel for
         for(int i = 0; i < candidates.size(); i++) 
         {   
-            max_order[i] = i;
+            //max_order[i] = i;
             auto c = candidates[i];
             // Evaluate Mutual Information
             Secs_tmp = ros::Time::now().toSec();
@@ -784,17 +884,50 @@ int main(int argc, char **argv) {
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
-            MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(sqrt(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2)), 0.5);
+            MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(sqrt(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2)), 0.5);
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
 
-        for(int j=0; j<candidates.size(); j++)
+        //Initialize gp regression
+        GPRegressor g(100, 2, 0.01);// what's this?
+        MatrixXf gp_train_x(candidates.size(), 3), gp_train_label(candidates.size(), 1), gp_test_x(gp_test_poses.size(), 3);
+
+        for (int i=0; i< candidates.size(); i++){
+            gp_train_x(i,0) = candidates[i].first.x();
+            gp_train_x(i,1) = candidates[i].first.y();
+            gp_train_x(i,2) = candidates[i].second.z();
+            gp_train_label(i) = MIs[i];
+        }
+
+        for (int i=0; i< gp_test_poses.size(); i++){
+            gp_test_x(i,0) = gp_test_poses[i].first.x();
+            gp_test_x(i,1) = gp_test_poses[i].first.y();
+            gp_test_x(i,2) = gp_test_poses[i].second.z();
+        }
+
+        // Perform GP regression
+        MatrixXf m, s2;
+        train_time = ros::Time::now().toSec();
+        g.train(gp_train_x, gp_train_label);
+        train_time = ros::Time::now().toSec() - train_time;
+
+        test_time = ros::Time::now().toSec();
+        g.test(gp_test_x, m, s2);
+        test_time = ros::Time::now().toSec() - test_time;
+        ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);        
+        for(int i = 0; i < gp_test_poses.size(); i++)
+            m(i) = m(i)/sqrt(sqrt(pow(gp_test_x(i,0)-laser_orig.x(), 2)+pow(gp_test_x(i,1) - laser_orig.y(), 2)));
+          
+        // ###########################
+        long int max_order[gp_test_poses.size()];
+
+        for(int j=0; j<gp_test_poses.size(); j++)
            {
             p=0;
-           for(int m=0; m<candidates.size(); m++)
+           for(int n=0; n<gp_test_poses.size(); n++)
               {
             
-              if (MIs[j] > MIs[m])
+              if (m(j) > m(n))
                  {
                  p++;
                  }
@@ -802,14 +935,15 @@ int main(int argc, char **argv) {
            max_order[p] = j;
            }
         
-        p = candidates.size()-1;
+        p = gp_test_poses.size()-1;
         loop:
         max_idx = max_order[p];
+ ROS_INFO("here!!!!");
  
-        next_vp = point3d(candidates[max_idx].first.x(),candidates[max_idx].first.y(),candidates[max_idx].first.z());
-        Goal_heading.setRPY(0.0, 0.0, candidates[max_idx].second.yaw());
+        next_vp = point3d(gp_test_x(max_idx,0),gp_test_x(max_idx,1),candidates[0].first.z());
+        Goal_heading.setRPY(0.0, 0.0, gp_test_x(max_idx,2));
         Goal_heading.normalize();
-        ROS_INFO("Max MI : %f , @ location: %3.2f  %3.2f  %3.2f", MIs[max_idx], next_vp.x(), next_vp.y(), next_vp.z() );
+        ROS_INFO("Estimated Max MI : %f , @ %3.2f,  %3.2f,  %3.2f", m(max_idx), next_vp.x(), next_vp.y(), next_vp.z() );
         ROS_INFO("CastRay Time: %2.3f Secs. InsertRay Time: %2.3f Secs.", Secs_CastRay, Secs_InsertRay);
 
         // Publish the candidates as marker array in rviz
@@ -817,8 +951,8 @@ int main(int argc, char **argv) {
         MI_heading.setRPY(0.0, -PI/2, 0.0);
         MI_heading.normalize();
         
-        CandidatesMarker_array.markers.resize(candidates.size());
-        for (int i = 0; i < candidates.size(); i++)
+        CandidatesMarker_array.markers.resize(gp_test_poses.size());
+        for (int i = 0; i < gp_test_poses.size(); i++)
         {
             CandidatesMarker_array.markers[i].header.frame_id = "map";
             CandidatesMarker_array.markers[i].header.stamp = ros::Time::now();
@@ -826,24 +960,24 @@ int main(int argc, char **argv) {
             CandidatesMarker_array.markers[i].id = i;
             CandidatesMarker_array.markers[i].type = visualization_msgs::Marker::ARROW;
             CandidatesMarker_array.markers[i].action = visualization_msgs::Marker::ADD;
-            CandidatesMarker_array.markers[i].pose.position.x = candidates[i].first.x();
-            CandidatesMarker_array.markers[i].pose.position.y = candidates[i].first.y();
-            CandidatesMarker_array.markers[i].pose.position.z = candidates[i].first.z();
+            CandidatesMarker_array.markers[i].pose.position.x = gp_test_x(i,0);
+            CandidatesMarker_array.markers[i].pose.position.y = gp_test_x(i,1);
+            CandidatesMarker_array.markers[i].pose.position.z = candidates[0].first.z();
             CandidatesMarker_array.markers[i].pose.orientation.x = MI_heading.x();
             CandidatesMarker_array.markers[i].pose.orientation.y = MI_heading.y();
             CandidatesMarker_array.markers[i].pose.orientation.z = MI_heading.z();
             CandidatesMarker_array.markers[i].pose.orientation.w = MI_heading.w();
-            CandidatesMarker_array.markers[i].scale.x = (double)MIs[i]/MIs[max_idx];
+            CandidatesMarker_array.markers[i].scale.x = (double)m(i)/m(max_idx);
             CandidatesMarker_array.markers[i].scale.y = 0.05;
             CandidatesMarker_array.markers[i].scale.z = 0.05;
-            CandidatesMarker_array.markers[i].color.a = (double)MIs[i]/MIs[max_idx];
+            CandidatesMarker_array.markers[i].color.a = (double)m(i)/m(max_idx);
             CandidatesMarker_array.markers[i].color.r = 0.0;
             CandidatesMarker_array.markers[i].color.g = 1.0;
             CandidatesMarker_array.markers[i].color.b = 0.0;
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
-        candidates.clear();
+        //candidates.clear();
 
         // Publish the goal as a Marker in rviz
         visualization_msgs::Marker marker;
