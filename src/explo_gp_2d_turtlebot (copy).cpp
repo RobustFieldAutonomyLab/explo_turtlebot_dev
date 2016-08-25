@@ -649,7 +649,7 @@ int main(int argc, char **argv) {
                     q.y = frontier_lines[n][m].y();
                     q.z = frontier_lines[n][m].z()+octo_reso;
                     Frontier_points_cubelist[n].points.push_back(q);   
-OS_INFO("%lu candidates generated.", candidates.size());
+
                 }
                 t++;
                 Frontier_points_pub.publish(Frontier_points_cubelist[n]); //publish frontier_points############
@@ -709,7 +709,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
         vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig); 
         // Generate Testing poses
         vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, laser_orig);
-        ROS_INFO("%lu candidates generated.", candidates.size());
+
         frontier_lines.clear();
 
         while(candidates.size() <= 2)
@@ -744,7 +744,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
             vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig);
         }
         
-        //ROS_INFO("%lu candidates generated.", candidates.size());
+        ROS_INFO("%lu candidates generated.", candidates.size());
         vector<double> MIs(candidates.size());
         double before = get_free_volume(cur_tree);
         max_idx = 0;
@@ -799,7 +799,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
         test_time = ros::Time::now().toSec() - test_time;
         ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);        
         for(int i = 0; i < gp_test_poses.size(); i++)
-            m(i) = m(i)/sqrt(pow(gp_test_x(i,0)-laser_orig.x(), 2)+pow(gp_test_x(i,1) - laser_orig.y(), 2));
+            m(i) = m(i)/sqrt(sqrt(pow(gp_test_x(i,0)-laser_orig.x(), 2)+pow(gp_test_x(i,1) - laser_orig.y(), 2)));
           
         // ###########################
         long int max_order[gp_test_poses.size()];
