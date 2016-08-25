@@ -14,7 +14,7 @@
 
   <node pkg="tf" type="static_transform_publisher" name="base_footprint_to_laser" args="0 0 0 0 0 0 base_footprint laser 50" />
   
-  <include file="$(find explo_octo_3d)/include/turtlebot_explo/turtlebot_gmapping.launch"/>
+  <include file="$(find explo_octo_3d)/launch/turtlebot_gmapping.launch"/>
 
   <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
 

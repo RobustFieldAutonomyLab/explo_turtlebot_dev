@@ -22,6 +22,8 @@
 #include <octomap_msgs/GetOctomap.h>
 #include "navigation_utils.h"
 #include <ros/callback_queue.h>
+#include "gpregressor.h"
+#include "covMaterniso3.h"
 
 
 using namespace std;
@@ -74,7 +76,7 @@ struct SensorModel {
 }; 
 
 // Establish sensor kinect
-SensorModel Kinect_360(64, 48, 2*PI*57/360, 2*PI*43/360, 10);
+SensorModel Kinect_360(64, 48, 2*PI*57/360, 2*PI*43/360, 5);//maybe need to change
 
 //entropy Input: octree   Output:volume
 double get_free_volume(const octomap::OcTree *octree) {
@@ -113,10 +115,10 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
     vector<vector<point3d>> frontier_lines;
     vector<point3d> frontier_points;
     octomap::OcTreeNode *n_cur_frontier;
-    bool frontier_true;
-    bool belong_old;
+    bool frontier_true; // whether or not a frontier point
+    bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.6;
+    double R1 = 0.4; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -124,35 +126,38 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
     for(octomap::OcTree::leaf_iterator n = octree->begin_leafs(octree->getTreeDepth()); n != octree->end_leafs(); ++n)
     {
         frontier_true = false;
-        unsigned long int num_free = 0;
+        unsigned long int num_free = 0; //number of free cube around frontier, for filtering out fake frontier
 
       if(!cur_tree_2d->isNodeOccupied(*n))
         {
          double x_cur = n.getX();
          double y_cur = n.getY();
          double z_cur = n.getZ();
+         //if there are unknown around the cube, the cube is frontier
          for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
              for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
             {
                 n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
                 if(!n_cur_frontier)
                 {
-                    frontier_true = true;            
+                    frontier_true = true;
+                    continue;            
                 }
-                else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                /*else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
                 {
                     num_free++;
 
-                }
+                }*/
 
             }
-            if(frontier_true && num_free >5 )
+            if(frontier_true)// && num_free >5 )
             {
 
                 double x_frontier = x_cur;
                 double y_frontier = y_cur;
                 double z_frontier = z_cur;
 
+                // divede frontier points into groups
                 if(frontier_lines.size() < 1)
                 {
                     frontier_points.resize(1);
@@ -197,7 +202,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_lines, point3d sensor_orig ) {
-    double R = 0.5;   // Robot step, in meters.
+    double R = 0.6;   // Robot step, in meters.
     double n = 6;
     octomap::OcTreeNode *n_cur;
     octomap::OcTreeNode *n_cur_3d;
@@ -209,9 +214,10 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
 
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
 
-            double initial_yaw = atan2(frontier_lines[u][0].y()-sensor_orig.y(),  frontier_lines[u][0].x()-sensor_orig.x() );
+            double initial_yaw = atan2(frontier_lines[u][0].y()-sensor_orig.y(),  frontier_lines[u][0].x()-sensor_orig.x() ); //yaw is from sensor_orig to center of a frontier group
 
-            for(double yaw = initial_yaw; yaw < initial_yaw+2*PI; yaw += PI*2 / n){
+            for(double yaw = initial_yaw; yaw < initial_yaw+2*PI; yaw += PI*2 / n){ 
+                // get candidates around the center of a frontier group
                 x = frontier_lines[u][0].x() - R * cos(yaw);
                 y = frontier_lines[u][0].y() - R * sin(yaw);
 
@@ -219,31 +225,31 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                 bool candidate_valid = true;
 
                 distance_can =sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2));
-               if(distance_can < 0.25){
-                  candidate_valid = false;
+                if(distance_can < 0.25){
+                  candidate_valid = false;// delete candidates close to sensor_orig
                   
                  }
-           else{
-                for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++)
-                    for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
-                        distance_can = sqrt(pow(x - frontier_lines[n][m].x(),2) + pow(y - frontier_lines[n][m].y(),2));
-                        if(distance_can < 0.25){
-                            candidate_valid = false;
-                            goto candidates_go;
-                        }
+                else{
+                    for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++)
+                        for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
+                            distance_can = sqrt(pow(x - frontier_lines[n][m].x(),2) + pow(y - frontier_lines[n][m].y(),2));
+                            if(distance_can < 0.25){
+                                candidate_valid = false;//delete candidates close to frontier
+                                goto candidates_go;
+                            }
                     }
                 
                     
-                n_cur = cur_tree_2d->search(point3d(x, y, z));
-                n_cur_3d = cur_tree->search(point3d(x, y, z));
+                    n_cur = cur_tree_2d->search(point3d(x, y, z));
+                    n_cur_3d = cur_tree->search(point3d(x, y, z));
 
 
-                if(!n_cur) {
-                        candidate_valid = false;
-                        }
-                else{
-                            for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
-                                for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
+                    if(!n_cur) {
+                            candidate_valid = false;//delete candidates which are unknown cubes
+                            }
+                    else{
+                            for (double x_buf = x - 0.3; x_buf < x + 0.3; x_buf += octo_reso) 
+                                for (double y_buf = y - 0.3; y_buf < y + 0.3; y_buf += octo_reso)
                                     //for (double z_buf = z - 0.2; z_buf < z + 0.2; z_buf += octo_reso/2)
                             {
                                 n_cur = cur_tree_2d->search(point3d(x_buf, y_buf, z));
@@ -251,22 +257,22 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                                     continue;
                                 }                                 
                                 if(cur_tree_2d->isNodeOccupied(n_cur)) {
-                                       candidate_valid = false;
+                                       candidate_valid = false;//delete candidates which have occupied cube around
                                 }  
                             }
+                        }
                     }
-                }
                 if(candidate_valid){
-                    for (double x_buf = x - 0.2; x_buf < x + 0.2; x_buf += octo_reso) 
-                                for (double y_buf = y - 0.2; y_buf < y + 0.2; y_buf += octo_reso)
-                                    for (double z_buf = 0.2; z_buf <=0.4; z_buf += octo_reso)
+                    for (double x_buf = x - 0.3; x_buf < x + 0.3; x_buf += octo_reso) 
+                                for (double y_buf = y - 0.3; y_buf < y + 0.3; y_buf += octo_reso)
+                                    for (double z_buf = sensor_orig.z()+0.15; z_buf <sensor_orig.z()+0.5; z_buf += octo_reso)
                             {
                                 n_cur_3d = cur_tree->search(point3d(x_buf, y_buf, z_buf));
                                 if(!n_cur_3d) {
                                     continue;
                                 }                                 
                                 if(cur_tree->isNodeOccupied(n_cur_3d)) {
-                                       candidate_valid = false;
+                                       candidate_valid = false;//delete candidates which have ccupied cubes around in 3D area
                                 }  
                             }
                 }
@@ -278,13 +284,17 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                     candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
                 }
                 else{
-                    ROS_WARN("Part of Candidtae(%f, %f, %f) occupied or unknow", x, y, z);
+                    //ROS_WARN("Part of Candidtae(%f, %f, %f) occupied or unknow", x, y, z);
                 }
             }
             
         }
     return candidates;
 }
+
+
+
+
 // Calculate Mutual Information. Input: octree, sensor_orig, hits, before
 double calc_MI(const octomap::OcTree *octree, const point3d &sensor_orig, const octomap::Pointcloud &hits, const double before) {
     auto octree_copy = new octomap::OcTree(*octree);
@@ -366,12 +376,12 @@ int main(int argc, char **argv) {
     char buffer[80];
     time (&rawtime);
     timeinfo = localtime(&rawtime);
-    strftime(buffer,80,"Trajectory_%R_%S_%m%d_DA.txt",timeinfo);
+    strftime(buffer,80,"Trajectory_gp_%R_%S_%m%d_DA.txt",timeinfo);
     std::string logfilename(buffer);
     std::cout << logfilename << endl;
-    strftime(buffer,80,"octomap_2d_%R_%S_%m%d_DA.ot",timeinfo);
+    strftime(buffer,80,"octomap_gp_2d_%R_%S_%m%d_DA.ot",timeinfo);
     octomap_name_2d = buffer;
-    strftime(buffer,80,"octomap_3d_%R_%S_%m%d_DA.ot",timeinfo);
+    strftime(buffer,80,"octomap_gp_3d_%R_%S_%m%d_DA.ot",timeinfo);
     octomap_name_3d = buffer;
 
 
@@ -420,26 +430,6 @@ int main(int argc, char **argv) {
 
     bool got_tf = false;
     bool arrived;
-
-    //Update the pose of velodyne from predefined tf.
-    /*got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/base_link", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
-        velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        tf::Matrix3x3(transform.getRotation()).getRPY(R_velo, P_velo, Y_velo);
-        Sensor_PrincipalAxis.rotate_IP(R_velo, P_velo, Y_velo);
-        ROS_INFO("Current Kinect heading: vector(%2.2f, %2.2f, %2.2f) -  RPY(%3.1f, %3.1f, %3.1f).", Sensor_PrincipalAxis.x(), Sensor_PrincipalAxis.y(), Sensor_PrincipalAxis.z(), R_velo/PI*180.0, P_velo/PI*180.0, Y_velo/PI*180.0);
-        got_tf = true;
-        }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: initial pose of Kinect"); 
-        ros::Duration(0.05).sleep();
-        } 
-    }   */
-    
-     //Rotate Sensor Model based on Velodyn Pose
-    //Kinect_360.SensorRays.rotate(R_velo, P_velo, Y_velo);
     
     // Update the initial location of the robot
     for(int o =0; o < 6; o++){
@@ -479,7 +469,7 @@ int main(int argc, char **argv) {
 
         ROS_WARN("Rotate 60 degrees");
         while (ros::Time::now() - start_turn < ros::Duration(2.6)){ // turning duration - second
-        twist_cmd.angular.z = 0.4; // turning speed
+        twist_cmd.angular.z = 0.6; // turning speed
         // turning angle = turning speed * turning duration / 3.14 * 180
         pub_twist.publish(twist_cmd);
         ros::Duration(0.05).sleep();
@@ -490,108 +480,7 @@ int main(int argc, char **argv) {
 
     }
 
-    /*got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/map", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect##############
-        velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        got_tf = true;
-    }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: Kinect to map"); 
-    } 
-    ros::Duration(0.05).sleep();
-    }
-
-    got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
-        laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        got_tf = true;
-    }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: laser to map"); 
-    } 
-    ros::Duration(0.05).sleep();
-    }
-    ROS_INFO("Initial  Position : %3.2f, %3.2f, %3.2f - Yaw : %3.1f ", laser_orig.x(), laser_orig.y(), laser_orig.z(), transform.getRotation().getAngle()*PI/180);
-    // Take a Initial Scan
-    ros::spinOnce();
-
-    // Rotate ~60 degrees 
-    point3d next_vp(laser_orig.x(), laser_orig.y(),laser_orig.z());
-    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233); // why 0.5233?###
-    Goal_heading.normalize();
-    bool arrived = goToDest(laser_orig, Goal_heading);
-
-    // Update the pose of the robot
-    got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/map", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
-        velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        got_tf = true;
-    }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: velodyne to map"); 
-    } 
-    ros::Duration(0.05).sleep();
-    }
-
-    got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
-        laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        got_tf = true;
-    }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: laser to map"); 
-    } 
-    ros::Duration(0.05).sleep();
-    }
-
-    // Take a Second Scan
-    ros::spinOnce();
-
-    // Rotate another 60 degrees
-    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233);
-    arrived = goToDest(laser_orig, Goal_heading);
-
-    // Update the pose of the robot
-    got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/map", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
-        velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        got_tf = true;
-    }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: velodyne to map"); 
-    } 
-    ros::Duration(0.05).sleep();
-    }
-
-    got_tf = false;
-    while(!got_tf){
-    try{
-        tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
-        laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-        got_tf = true;
-    }
-    catch (tf::TransformException ex) {
-        ROS_WARN("Wait for tf: laser to map"); 
-    } 
-    ros::Duration(0.05).sleep();
-    }
-
-    // Take a Third Scan
-    ros::spinOnce();
-
-    // Rotate another 60 degrees
-    Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle()-0.5233);
-    arrived = goToDest(laser_orig, Goal_heading);*/
+   
 
     // Update the pose of the robot
     got_tf = false;
@@ -621,6 +510,8 @@ int main(int argc, char **argv) {
     }
     // Take a Fourth Scan
     ros::spinOnce();
+
+    double train_time, test_time;
 
     // steps robot taken, counter
     int robot_step_counter = 0;
@@ -669,7 +560,7 @@ int main(int argc, char **argv) {
                     q.y = frontier_lines[n][m].y();
                     q.z = frontier_lines[n][m].z()+octo_reso;
                     Frontier_points_cubelist[n].points.push_back(q);   
-
+OS_INFO("%lu candidates generated.", candidates.size());
                 }
                 t++;
                 Frontier_points_pub.publish(Frontier_points_cubelist[n]); //publish frontier_points############
@@ -726,9 +617,12 @@ int main(int argc, char **argv) {
 
 
         // Generate Candidates
-        vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig); // what is transform ?#####
+        vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig); 
+        // Generate Testing poses
+        ROS_INFO("%lu candidates generated.", candidates.size());
         frontier_lines.clear();
-        while(candidates.size() <= 1)
+
+        while(candidates.size() < 1)
         {
             // Get the current heading
             got_tf = false;
@@ -760,13 +654,11 @@ int main(int argc, char **argv) {
             vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig);
         }
         
-        ROS_INFO("%lu candidates generated.", candidates.size());
         vector<double> MIs(candidates.size());
         double before = get_free_volume(cur_tree);
         max_idx = 0;
-        long int max_order[candidates.size()];
+
         unsigned int p = 0;
-        int m=0;
 
         // for every candidate...
         double Secs_CastRay, Secs_InsertRay, Secs_tmp;  //What are those? ####
@@ -776,7 +668,7 @@ int main(int argc, char **argv) {
         #pragma omp parallel for
         for(int i = 0; i < candidates.size(); i++) 
         {   
-            max_order[i] = i;
+            //max_order[i] = i;
             auto c = candidates[i];
             // Evaluate Mutual Information
             Secs_tmp = ros::Time::now().toSec();
@@ -784,9 +676,14 @@ int main(int argc, char **argv) {
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
-            MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(sqrt(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2)), 0.5);
+            MIs[i] = calc_MI(cur_tree, c.first, hits, before)/(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2));
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
+
+        
+          
+        // ###########################
+        long int max_order[candidates.size()];
 
         for(int j=0; j<candidates.size(); j++)
            {
@@ -803,13 +700,14 @@ int main(int argc, char **argv) {
            }
         
         p = candidates.size()-1;
-        loop:
         max_idx = max_order[p];
+        loop:
+        //max_idx = max_order[p];
  
-        next_vp = point3d(candidates[max_idx].first.x(),candidates[max_idx].first.y(),candidates[max_idx].first.z());
-        Goal_heading.setRPY(0.0, 0.0, candidates[max_idx].second.yaw());
+        next_vp = point3d(candidates[max_order[p]].first.x(),candidates[max_order[p]].first.y(),candidates[max_order[p]].first.z());
+        Goal_heading.setRPY(0.0, 0.0, candidates[max_order[p]].second.yaw());
         Goal_heading.normalize();
-        ROS_INFO("Max MI : %f , @ location: %3.2f  %3.2f  %3.2f", MIs[max_idx], next_vp.x(), next_vp.y(), next_vp.z() );
+        ROS_INFO("Estimated Max MI : %f , @ %3.2f,  %3.2f,  %3.2f", MIs[max_order[p]], next_vp.x(), next_vp.y(), next_vp.z() );
         ROS_INFO("CastRay Time: %2.3f Secs. InsertRay Time: %2.3f Secs.", Secs_CastRay, Secs_InsertRay);
 
         // Publish the candidates as marker array in rviz
@@ -843,7 +741,7 @@ int main(int argc, char **argv) {
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
-        candidates.clear();
+        //candidates.clear();
 
         // Publish the goal as a Marker in rviz
         visualization_msgs::Marker marker;
@@ -870,7 +768,7 @@ int main(int argc, char **argv) {
         GoalMarker_pub.publish( marker ); //publish goal##########
 
         // Send the Robot 
-        Goal_heading.setRPY(0.0, 0.0, candidates[max_idx].second.yaw());
+        Goal_heading.setRPY(0.0, 0.0, candidates[max_order[p]].second.yaw());
         arrived = goToDest(next_vp, Goal_heading);
 
         if(arrived)
@@ -1032,32 +930,11 @@ int main(int argc, char **argv) {
         else
         {
             ROS_ERROR("Failed to navigate to goal");
-            /*/ if max MI candidates can't be arrived, try second max MI candidates
-
-            // Get the current heading
-            got_tf = false;
-            while(!got_tf){
-            try{
-                tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
-                laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-                got_tf = true;
-            }
-            catch (tf::TransformException ex) {
-                ROS_WARN("Wait for tf: laser to map");
-            }
-            ros::Duration(0.05).sleep();
-            }
-            // Rotate negative along Yaw for 30 deg to look for more open areas
-            Goal_heading.setRPY(0.0, 0.0, transform.getRotation().getAngle() - PI/6);
-            Goal_heading.normalize();
-            arrived = goToDest(laser_orig, Goal_heading); // order to move_base
-            ros::spinOnce();*/
-            
-
-            if(p == 0){
-               goto start_over;
-            }
             p--;
+            if(p < 0){
+               continue;
+            }
+
             goto loop;
         }
     }

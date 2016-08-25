@@ -2,7 +2,7 @@
 #include <tf/transform_listener.h>
 
 
-void RPY2Quaternion(double roll, double pitch, double yaw, double *x, double *y, double *z, double *w) {
+/*void RPY2Quaternion(double roll, double pitch, double yaw, double *x, double *y, double *z, double *w) {
     double cr2, cp2, cy2, sr2, sp2, sy2;
     cr2 = cos(roll*0.5);
     cp2 = cos(pitch*0.5);
@@ -16,7 +16,7 @@ void RPY2Quaternion(double roll, double pitch, double yaw, double *x, double *y,
     *x = sr2*cp2*cy2 - cr2*sp2*sy2;
     *y = cr2*sp2*cy2 + sr2*cp2*sy2;
     *z = cr2*cp2*sy2 - sr2*sp2*cy2;
-}
+}*/
 
 // bool goToDest(point3d go_posi, double qx, double qy, double qz, double qw) {
 bool goToDest(point3d go_posi, tf::Quaternion q) {
