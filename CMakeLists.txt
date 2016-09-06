@@ -123,8 +123,8 @@ include_directories(
 # )
 
 add_library(navigation_utils    src/navigation_utils.cpp)
-# add_library(gpregressor         src/gpregressor.cpp)
-# add_library(covMatern           src/covMaterniso3.cpp)
+add_library(gpregressor         src/gpregressor.cpp)
+add_library(covMatern           src/covMaterniso3.cpp)
 
 ## Declare a cpp executable
 # add_executable(explo_octo_3d_node src/explo_octo_3d_node.cpp)
@@ -133,14 +133,16 @@ add_executable(navigation           src/navigation_utils.cpp)
 # add_executable(explo_sam_2d_new     src/explo_sam_2d_new.cpp )
 # add_executable(explo_gp_2d          src/explo_gp_2d.cpp src/gpregressor.cpp  src/covMaterniso3.cpp)
 #add_executable(explo_gp_2d_new      src/explo_gp_2d_new.cpp src/gpregressor.cpp  src/covMaterniso3.cpp)
-# add_executable(simu_explo           src/explo_octo_3d_node.cpp src/gpregressor.cpp  src/covMaterniso3.cpp)
+#add_executable(simu_explo           src/explo_octo_3d_node.cpp src/gpregressor.cpp  src/covMaterniso3.cpp)
 # add_executable(simu_gazebo          src/simu_gazebo.cpp)
 #add_executable(save_to_ply          src/save_ply.cpp)
 #add_executable(isam_ros             src/isam_example.cpp)
 add_executable(scan_to_pcl          src/scan_to_pcl.cpp)
 add_executable(explo_sam_2d_turtlebot     src/explo_sam_2d_turtlebot.cpp)
+add_executable(pointcloud2_to_laserscan    src/pointcloud2_to_laserscan.cpp)
 #add_executable(explo_gp_2d_turtlebot     src/explo_gp_2d_turtlebot.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
-
+add_executable(explo_bay_opt_2d_turtlebot     src/explo_bay_opt_2d_turtlebot.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
+add_executable(explo_bay_opt_2d_turtlebot_test     src/explo_bay_opt_2d_turtlebot_test.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -165,6 +167,18 @@ add_executable(explo_sam_2d_turtlebot     src/explo_sam_2d_turtlebot.cpp)
 # )
 
 target_link_libraries(explo_sam_2d_turtlebot
+  ${catkin_LIBRARIES}
+  ${OCTOMAP_LIBRARIES}
+  navigation_utils
+)
+
+target_link_libraries(explo_bay_opt_2d_turtlebot
+  ${catkin_LIBRARIES}
+  ${OCTOMAP_LIBRARIES}
+  navigation_utils
+)
+
+target_link_libraries(explo_bay_opt_2d_turtlebot_test
   ${catkin_LIBRARIES}
   ${OCTOMAP_LIBRARIES}
   navigation_utils
@@ -197,6 +211,10 @@ target_link_libraries(navigation
 #)
 
 target_link_libraries(scan_to_pcl
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(pointcloud2_to_laserscan
   ${catkin_LIBRARIES}
 )
 
