@@ -122,13 +122,13 @@ include_directories(
 #   src/${PROJECT_NAME}/explo_octo_3d.cpp
 # )
 
-add_library(navigation_utils    src/navigation_utils.cpp)
+add_library(navigation    src/navigation_utils.cpp)
 add_library(gpregressor         src/gpregressor.cpp)
 add_library(covMatern           src/covMaterniso3.cpp)
 
 ## Declare a cpp executable
 # add_executable(explo_octo_3d_node src/explo_octo_3d_node.cpp)
-add_executable(navigation           src/navigation_utils.cpp)
+#add_executable(navigation           src/navigation_utils.cpp)
 # add_executable(explo_sam_2d         src/explo_sam_2d.cpp )
 # add_executable(explo_sam_2d_new     src/explo_sam_2d_new.cpp )
 # add_executable(explo_gp_2d          src/explo_gp_2d.cpp src/gpregressor.cpp  src/covMaterniso3.cpp)
@@ -143,10 +143,13 @@ add_executable(pointcloud2_to_laserscan    src/pointcloud2_to_laserscan.cpp)
 #add_executable(explo_gp_2d_turtlebot     src/explo_gp_2d_turtlebot.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot     src/explo_bay_opt_2d_turtlebot.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot_test     src/explo_bay_opt_2d_turtlebot_test.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
+add_executable(gotodest          src/gotodest.cpp src/navigation_utils.cpp)
+add_executable(explo_sam_2d_turtlebot_without_go     src/explo_sam_2d_turtlebot_without_go.cpp)
+
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(explo_octo_3d_node explo_octo_3d_generate_messages_cpp)
+# add_dependencies(explo_octo_3d_node explo_octo_3d_generate_messages_cpp)goToDest
 # add_dependencies(navigation move_base_msgs actionlib roscpp)
 
 ## Specify libraries to link a library or executable target against
@@ -169,19 +172,23 @@ add_executable(explo_bay_opt_2d_turtlebot_test     src/explo_bay_opt_2d_turtlebo
 target_link_libraries(explo_sam_2d_turtlebot
   ${catkin_LIBRARIES}
   ${OCTOMAP_LIBRARIES}
-  navigation_utils
+  navigation
 )
 
 target_link_libraries(explo_bay_opt_2d_turtlebot
   ${catkin_LIBRARIES}
   ${OCTOMAP_LIBRARIES}
-  navigation_utils
+  navigation
 )
 
 target_link_libraries(explo_bay_opt_2d_turtlebot_test
   ${catkin_LIBRARIES}
   ${OCTOMAP_LIBRARIES}
-  navigation_utils
+)
+
+target_link_libraries(explo_sam_2d_turtlebot_without_go
+  ${catkin_LIBRARIES}
+  ${OCTOMAP_LIBRARIES}
 )
 
 #target_link_libraries(explo_gp_2d_turtlebot
@@ -202,9 +209,9 @@ target_link_libraries(explo_bay_opt_2d_turtlebot_test
 #   # covMatern
 # )
 
-target_link_libraries(navigation
-  ${catkin_LIBRARIES}
-)
+#target_link_libraries(navigation
+#  ${catkin_LIBRARIES}
+#)
 
 #target_link_libraries(save_to_ply
 #  ${catkin_LIBRARIES}
@@ -216,6 +223,12 @@ target_link_libraries(scan_to_pcl
 
 target_link_libraries(pointcloud2_to_laserscan
   ${catkin_LIBRARIES}
+)
+
+target_link_libraries(gotodest
+  ${catkin_LIBRARIES}
+  ${OCTOMAP_LIBRARIES}
+  navigation
 )
 
 

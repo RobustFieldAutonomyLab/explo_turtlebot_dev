@@ -1,5 +1,8 @@
 #include "navigation_utils.h"
 #include <tf/transform_listener.h>
+#include <move_base_msgs/MoveBaseAction.h>
+#include <actionlib/client/simple_action_client.h>
+#include <octomap/octomap.h>
 
 
 /*void RPY2Quaternion(double roll, double pitch, double yaw, double *x, double *y, double *z, double *w) {
@@ -61,7 +64,7 @@ bool goToDest(point3d go_posi, tf::Quaternion q) {
 }
 
 
-int main(int argc, char** argv){
+/*int main(int argc, char** argv){
   ros::init(argc, argv, "navigation_utils");
   // point3d cur_posi(0,0,0);
 
@@ -84,4 +87,4 @@ int main(int argc, char** argv){
   //   ROS_INFO("We could not move forward one meter for some reason");
 
   return 0;
-}
+}*/

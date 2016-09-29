@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iterator>
 #include <ctime>
+#include "std_msgs/Bool.h"
 
 #include <pcl/point_types.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -20,7 +21,7 @@
 #include <octomap_msgs/Octomap.h>
 #include <octomap_msgs/conversions.h>
 #include <octomap_msgs/GetOctomap.h>
-#include "navigation_utils.h"
+//#include "navigation_utils.h"
 #include <ros/callback_queue.h>
 #include "gpregressor.h"
 #include "covMaterniso3.h"
@@ -44,7 +45,7 @@ bool kinect_flag = 0; // 0 : msg not received
 tf::TransformListener *tf_listener; 
 int octomap_seq = 0;
 
-
+bool arrive;
 
 
 
@@ -123,7 +124,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.4; //group length
+    double R1 = 1.0; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -207,7 +208,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.4; //group length
+    double R1 = 1.0; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -287,7 +288,10 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
 vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig ) {
-    double R2 = 0.6;        // Robot step, in meters.
+    double R2;        // Robot step, in meters.
+    double R2_min = 0.3;
+    double R2_max = 1.0;
+
     double R3 = 0.25;       // to other frontiers
     double n = 6;
     octomap::OcTreeNode *n_cur_3d;
@@ -297,6 +301,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     double yaw;
     double distance_can;
 
+    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + 0.3){
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
             for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n){ 
                 x = frontier_groups[u][0].x() - R2 * cos(yaw);
@@ -349,12 +354,16 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                 }
             }
         }
+    }
     return candidates;
 }
 
 //generate gp pose
 vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_groups, point3d sensor_orig, int n ) {
-    double R2 = 0.6;        // Robot step, in meters.
+    double R2;        // Robot step, in meters.
+    double R2_min = 0.3;
+    double R2_max = 1.0;
+
     double R3 = 0.25;       // to other frontiers
     //double n = 24;
     octomap::OcTreeNode *n_cur_3d;
@@ -364,6 +373,8 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
     double yaw;
     double distance_can;
 
+    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + 0.1){
+
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
             for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n){ 
                 x = frontier_groups[u][0].x() - R2 * cos(yaw);
@@ -416,6 +427,7 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
                 }
             }
         }
+    }
     return candidates;
 }
 
@@ -491,6 +503,10 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
 
 }
 
+void arrive_callbacks( const std_msgs::Bool arrived ){
+    arrive = arrived.data;
+}
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "explo_sam_2d_turtlebot");
     ros::NodeHandle nh;
@@ -522,6 +538,10 @@ int main(int argc, char **argv) {
     ros::Publisher Free_marker_pub = nh.advertise<visualization_msgs::Marker>("Free_MarkerArray", 1);
     ros::Publisher Free_marker_3d_pub = nh.advertise<visualization_msgs::Marker>("Free_MarkerArray_3d", 1);
     ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
+    ros::Publisher Turtlebot_goal_pub = nh.advertise<geometry_msgs::Point>("Turtlebot_goal", 1);
+    ros::Publisher Turtlebot_heading_pub = nh.advertise<geometry_msgs::Vector3>("Turtlebot_heading", 1);
+    ros::Subscriber arrive_sub = nh.subscribe<std_msgs::Bool>("/Arrive",1,arrive_callbacks);
+    //ros::Publisher Turtlebot_goal_pub = nh.advertise<vector<pair<point3d, point3d>>>("Turtlebot_goal", 1);
 
 
     tf_listener = new tf::TransformListener();
@@ -1063,7 +1083,27 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
         // Send the Robot 
         Goal_heading.setRPY(0.0, 0.0, candidates[max_order[p]].second.yaw());
-        arrived = goToDest(next_vp, Goal_heading);
+        //arrived = goToDest(next_vp, Goal_heading);
+
+        geometry_msgs::Point Goal_point;
+        geometry_msgs::Vector3 Goal_pose;
+
+        Goal_point.x = next_vp.x();
+        Goal_point.y = next_vp.y();
+        Goal_point.z = next_vp.z();
+
+        Goal_pose.x = Goal_heading.x();
+        Goal_pose.y = Goal_heading.y();
+        Goal_pose.z = Goal_heading.z();        
+
+        Turtlebot_goal_pub.publish( Goal_point );
+        Turtlebot_heading_pub.publish( Goal_pose );
+        //ros::spinOnce();
+        while(!arrive){
+            ros::spinOnce();
+            ROS_INFO("wait for arrive");
+        }
+        //bool arrive = goToDest(next_vp, Goal_heading);
 
         if(arrived)
         {
@@ -1223,7 +1263,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
             //output MI
             std::string realname = "realMI.txt";
-            std::string gpname = "gpname.txt";
+            std::string gpname = "gpMI.txt";
             //char *intStr = itoa(robot_step_counter);
             stringstream ss;
             ss << robot_step_counter;
@@ -1237,8 +1277,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
             gpMI.open(gpname, std::ofstream::out | std::ofstream::app);
             for(unsigned long int i = 0; i < gp_test_poses.size(); i++ ){
 
-                realMI << i << "    " << MIs_test_real[i] <<endl;
-                gpMI << i << "    " << m(i) << endl;
+                realMI << i << "," << MIs_test_real[i] <<endl;
+                gpMI << i << "," << m(i) << endl;
 
 
             }

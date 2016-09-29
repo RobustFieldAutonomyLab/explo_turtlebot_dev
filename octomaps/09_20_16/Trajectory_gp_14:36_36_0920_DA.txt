@@ -1,0 +1,15 @@
+DA Step: 1  | Current Entropy: 41.853
+DA Step: 2  | Current Entropy: 43.477
+DA Step: 3  | Current Entropy: 55.965
+DA Step: 4  | Current Entropy: 57.535
+DA Step: 5  | Current Entropy: 57.791
+DA Step: 6  | Current Entropy: 57.987
+DA Step: 7  | Current Entropy: 58.917
+DA Step: 8  | Current Entropy: 61.256
+DA Step: 9  | Current Entropy: 76.033
+DA Step: 10  | Current Entropy: 84.035
+DA Step: 11  | Current Entropy: 84.309
+DA Step: 12  | Current Entropy: 88.009
+DA Step: 13  | Current Entropy: 89.036
+DA Step: 14  | Current Entropy: 90.186
+DA Step: 15  | Current Entropy: 90.245

@@ -106,7 +106,8 @@ octomap::Pointcloud cast_sensor_rays(const octomap::OcTree *octree, const point3
     for(int i = 0; i < SensorRays_copy.size(); i++) {
         if(octree->castRay(position, SensorRays_copy.getPoint(i), end, true, Kinect_360.max_range)) {
             
-        } else {
+        } 
+        else {
             end = SensorRays_copy.getPoint(i) * Kinect_360.max_range;
             end += position;
             hits.push_back(end);
@@ -123,7 +124,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.4; //group length
+    double R1 = 1; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -199,7 +200,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
 
 
 
-vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octree) {
+vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octree, const double z) {
 
     vector<vector<point3d>> frontier_lines;
     vector<point3d> frontier_points;
@@ -207,7 +208,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.4; //group length
+    double R1 = 1; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -219,62 +220,69 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 
       if(!cur_tree_2d->isNodeOccupied(*n))
         {
-         double x_cur = n.getX();
-         double y_cur = n.getY();
-         double z_cur = n.getZ();
-         //if there are unknown around the cube, the cube is frontier
-         for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
-             for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
+            if(n.getZ() == z)
             {
-                n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
-                if(!n_cur_frontier)
-                {
-                    frontier_true = true;
-                    continue;            
-                }
-                /*else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
-                {
-                    num_free++;
+                double x_cur = n.getX();
+                double y_cur = n.getY();
+                double z_cur = n.getZ();
+                //if there are unknown around the cube, the cube is frontier
 
-                }*/
 
-            }
-            if(frontier_true)// && num_free >5 )
-            {
-
-                double x_frontier = x_cur;
-                double y_frontier = y_cur;
-                double z_frontier = z_cur;
-
-                // divede frontier points into groups
-                if(frontier_lines.size() < 1)
-                {
-                    frontier_points.resize(1);
-                    frontier_points[0] = point3d(x_frontier,y_frontier,z_frontier);
-                    frontier_lines.push_back(frontier_points);
-                    frontier_points.clear();
-                }
-                else
-                {
-                    bool belong_old = false;            
-
-                    for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
-                            distance = sqrt(pow(frontier_lines[u][0].x()-x_frontier, 2)+pow(frontier_lines[u][0].y()-y_frontier, 2)) ;
-                            if(distance < R1){
-                               frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
-                               belong_old = true;
-                               break;
+                    for (double x_cur_buf = x_cur - 0.1; x_cur_buf < x_cur + 0.15; x_cur_buf += octo_reso)
+                       for (double y_cur_buf = y_cur - 0.1; y_cur_buf < y_cur + 0.15; y_cur_buf += octo_reso)
+                       //for (double z_cur_buf = z_cur - 0.1; z_cur_buf < z_cur + 0.15; z_cur_buf += octo_reso)
+                       {
+                           n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
+                           if(!n_cur_frontier)
+                            {
+                              frontier_true = true;
+                              continue;            
                             }
-                    }
-                    if(!belong_old){
-                               frontier_points.resize(1);
-                               frontier_points[0] = point3d(x_frontier, y_frontier, z_frontier);
-                               frontier_lines.push_back(frontier_points);
-                               frontier_points.clear();
-                    }                              
-                }
+                            /*else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                                    {
+                                    num_free++;
 
-            } 
+                                     }*/
+     
+                        }
+                // }
+                if(frontier_true)// && num_free >5 )
+                {
+
+                    double x_frontier = x_cur;
+                    double y_frontier = y_cur;
+                    double z_frontier = z_cur;
+
+                    // divede frontier points into groups
+                    if(frontier_lines.size() < 1)
+                    {
+                        frontier_points.resize(1);
+                        frontier_points[0] = point3d(x_frontier,y_frontier,z_frontier);
+                        frontier_lines.push_back(frontier_points);
+                        frontier_points.clear();
+                    }
+                    else
+                    {
+                        bool belong_old = false;            
+
+                        for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
+                                distance = sqrt(pow(frontier_lines[u][0].x()-x_frontier, 2)+pow(frontier_lines[u][0].y()-y_frontier, 2)) ;
+                                if(distance < R1){
+                                   frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
+                                   belong_old = true;
+                                   break;
+                                }
+                        }
+                        if(!belong_old){
+                                   frontier_points.resize(1);
+                                   frontier_points[0] = point3d(x_frontier, y_frontier, z_frontier);
+                                   frontier_lines.push_back(frontier_points);
+                                   frontier_points.clear();
+                        }                              
+                    }
+
+                } 
+            }
         }
         
     }
@@ -286,16 +294,21 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
-vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig ) {
-    double R2 = 0.6;        // Robot step, in meters.
-    double R3 = 0.25;       // to other frontiers
-    double n = 6;
+vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, const double R2_max ) {
+    double R2;        // Robot step, in meters.
+    //double R2_min = 0.3;
+    //double R2_max = 1.0;
+
+    double R3 = 0.1;       // to other frontiers
+    double n = 10;
     octomap::OcTreeNode *n_cur_3d;
     vector<pair<point3d, point3d>> candidates;
     double z = sensor_orig.z();
     double x, y;
     double yaw;
     double distance_can;
+    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + 0.3){
+
 
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
             for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n){ 
@@ -311,7 +324,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                     continue;
                 }
 
-                if(sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2)) < 0.25){
+                if(sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2)) < 0.15){
                   candidate_valid = false;// delete candidates close to sensor_orig
                   continue;
                 }
@@ -349,13 +362,16 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
                 }
             }
         }
+    }
     return candidates;
 }
 
 //generate gp pose
-vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_groups, point3d sensor_orig, int n ) {
-    double R2 = 0.6;        // Robot step, in meters.
-    double R3 = 0.25;       // to other frontiers
+vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_groups, point3d sensor_orig, int n, const double R2_min, const double R2_max ) {
+    double R2;        // Robot step, in meters.
+
+
+    double R3 = 0.1;       // to other frontiers
     //double n = 24;
     octomap::OcTreeNode *n_cur_3d;
     vector<pair<point3d, point3d>> candidates;
@@ -364,6 +380,8 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
     double yaw;
     double distance_can;
 
+    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + 0.1){
+
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
             for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n){ 
                 x = frontier_groups[u][0].x() - R2 * cos(yaw);
@@ -378,7 +396,7 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
                     continue;
                 }
 
-                if(sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2)) < 0.25){
+                if(sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2)) < 0.15){
                   candidate_valid = false;// delete candidates close to sensor_orig
                   continue;
                 }
@@ -416,6 +434,7 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
                 }
             }
         }
+    }
     return candidates;
 }
 
@@ -648,8 +667,24 @@ int main(int argc, char **argv) {
     while (ros::ok())
     {
             start_over:
+            vector<vector<point3d>> frontier_lines;
+            vector<pair<point3d, point3d>> candidates;
+            double entropy = get_free_volume(cur_tree);
+            ROS_INFO("entropy_frontie %f",entropy);
+            int level = 0;
+            if(entropy < 110){
+                level = 1;
+                frontier_lines = generate_frontier_points( cur_tree_2d );
+                candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4);
+                int n = frontier_lines.size();
+                ROS_INFO("frontier_num %d", n); 
+            }
+            else{
+                level = 2;
+                frontier_lines = generate_frontier_points_3d( cur_tree, 1.5 );
+                candidates = generate_candidates(frontier_lines, laser_orig, 3.9, 3.9); 
+            }
             
-            vector<vector<point3d>> frontier_lines=generate_frontier_points( cur_tree_2d );
             /*unsigned long int t = 0;
             
             visualization_msgs::Marker Frontier_points_cubelist[frontier_lines.size()];
@@ -746,7 +781,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
 
 
-            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree );
+            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree, 1.5 );
 
             o = 0;
             for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines_3d.size(); e++) {
@@ -765,7 +800,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
             Frontier_points_cubelist_3d.scale.x = octo_reso;
             Frontier_points_cubelist_3d.scale.y = octo_reso;
             Frontier_points_cubelist_3d.scale.z = octo_reso;
-            Frontier_points_cubelist_3d.color.a = 1.0;
+            Frontier_points_cubelist_3d.color.a = 0.3;
             Frontier_points_cubelist_3d.color.r = (double)255/255;
             Frontier_points_cubelist_3d.color.g = 0;
             Frontier_points_cubelist_3d.color.b = (double)255/255;
@@ -797,7 +832,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
     
         // Generate Candidates
-        vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig); 
+        //vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig, 0.3, 1); 
         // Generate Testing poses
         ROS_INFO("%lu candidates generated.", candidates.size());
 
@@ -836,7 +871,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig);
+            vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4);
         }
         
         vector<double> MIs(candidates.size());
@@ -861,7 +896,9 @@ OS_INFO("%lu candidates generated.", candidates.size());
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
-            MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 1.5);
+            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 1);
+            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
+            
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
 
@@ -873,7 +910,9 @@ OS_INFO("%lu candidates generated.", candidates.size());
         for(unsigned long int t = 1; t < 6; t++){
             int tn = 12*t;
             // Generate Testing poses
-            vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, laser_orig, tn);
+            vector<pair<point3d, point3d>> gp_test_poses;
+            if(level == 1) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 0.4, 0.4);
+            else if(level == 2) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 3.9, 3.9);
 
             //Initialize gp regression
             GPRegressor g(100, 2, 0.01);// what's this?
@@ -926,7 +965,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
             auto c = candidates_next;
             Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
-            MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 1.5);
+            if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 1), 1);
+            else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
             candidates.push_back(candidates_next);
             MIs.push_back(MIs_next);
             ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 1.5));
