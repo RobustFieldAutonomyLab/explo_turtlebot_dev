@@ -44,6 +44,8 @@ bool kinect_flag = 0; // 0 : msg not received
 tf::TransformListener *tf_listener; 
 int octomap_seq = 0;
 
+bool BayOpt = true;
+
 
 
 
@@ -294,13 +296,13 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
-vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, const double R2_max ) {
+vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, const double R2_max, double n ) {
     double R2;        // Robot step, in meters.
     //double R2_min = 0.3;
     //double R2_max = 1.0;
 
     double R3 = 0.1;       // to other frontiers
-    double n = 10;
+    //double n = 10;
     octomap::OcTreeNode *n_cur_3d;
     vector<pair<point3d, point3d>> candidates;
     double z = sensor_orig.z();
@@ -483,6 +485,7 @@ void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {
 
 void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
 {
+
     pcl::PCLPointCloud2 cloud2;
     pcl_conversions::toPCL(*cloud2_msg, cloud2);
     PointCloud* cloud (new PointCloud);
@@ -511,8 +514,11 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
 }
 
 int main(int argc, char **argv) {
+
     ros::init(argc, argv, "explo_sam_2d_turtlebot");
     ros::NodeHandle nh;
+
+    ros::Time time_init = ros::Time::now();
 
     // Initialize time
     time_t rawtime;
@@ -520,7 +526,8 @@ int main(int argc, char **argv) {
     char buffer[80];
     time (&rawtime);
     timeinfo = localtime(&rawtime);
-    strftime(buffer,80,"Trajectory_gp_%R_%S_%m%d_DA.txt",timeinfo);
+    if(BayOpt)  strftime(buffer,80,"Trajectory_gp_BO_%R_%S_%m%d_DA.txt",timeinfo);
+    else  strftime(buffer,80,"Trajectory_DA_%R_%S_%m%d_DA.txt",timeinfo);
     std::string logfilename(buffer);
     std::cout << logfilename << endl;
     strftime(buffer,80,"octomap_gp_2d_%R_%S_%m%d_DA.ot",timeinfo);
@@ -672,18 +679,24 @@ int main(int argc, char **argv) {
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
-            if(entropy < 110){
+            if(entropy < 120){
                 level = 1;
                 frontier_lines = generate_frontier_points( cur_tree_2d );
-                candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4);
-                int n = frontier_lines.size();
-                ROS_INFO("frontier_num %d", n); 
+
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
+                else candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
+                //int n = frontier_lines.size();
+                //ROS_INFO("frontier_num %d", n); 
             }
             else{
+                ROS_INFO("Exploration is done");
+                while(1);
+            }
+            /*else{
                 level = 2;
                 frontier_lines = generate_frontier_points_3d( cur_tree, 1.5 );
                 candidates = generate_candidates(frontier_lines, laser_orig, 3.9, 3.9); 
-            }
+            }*/
             
             /*unsigned long int t = 0;
             
@@ -871,10 +884,12 @@ OS_INFO("%lu candidates generated.", candidates.size());
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
         }
         
         vector<double> MIs(candidates.size());
+        //vector<double> MIs_temp(candidates.size());
         double before = get_free_volume(cur_tree);
         max_idx = 0;
 
@@ -896,7 +911,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
-            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 1);
+            //MIs_temp[i] = calc_MI(cur_tree, c.first, hits, before);
+            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 1);
             else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
             
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
@@ -905,82 +921,83 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
 
         // Bayesian Opt
-        double MIs_next;
-        
-        for(unsigned long int t = 1; t < 6; t++){
-            int tn = 12*t;
-            // Generate Testing poses
-            vector<pair<point3d, point3d>> gp_test_poses;
-            if(level == 1) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 0.4, 0.4);
-            else if(level == 2) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 3.9, 3.9);
+        if(BayOpt){
+            double MIs_next;
+            
+            for(unsigned long int t = 1; t < 4; t++){
+                int tn = 20;
+                // Generate Testing poses
+                vector<pair<point3d, point3d>> gp_test_poses;
+                if(level == 1) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 0.4, 0.4);
+                else if(level == 2) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 3.9, 3.9);
 
-            //Initialize gp regression
-            GPRegressor g(100, 2, 0.01);// what's this?
-            MatrixXf gp_train_x(candidates.size(), 3), gp_train_label(candidates.size(), 1), gp_test_x(gp_test_poses.size(), 3);
+                //Initialize gp regression
+                GPRegressor g(100, 2, 0.01);// what's this?
+                MatrixXf gp_train_x(candidates.size(), 3), gp_train_label(candidates.size(), 1), gp_test_x(gp_test_poses.size(), 3);
 
-            for (int i=0; i< candidates.size(); i++){
-                gp_train_x(i,0) = candidates[i].first.x();
-                gp_train_x(i,1) = candidates[i].first.y();
-                gp_train_x(i,2) = candidates[i].second.z();
-                gp_train_label(i) = MIs[i];
-            }
-
-            for (int i=0; i< gp_test_poses.size(); i++){
-                gp_test_x(i,0) = gp_test_poses[i].first.x();
-                gp_test_x(i,1) = gp_test_poses[i].first.y();
-                gp_test_x(i,2) = gp_test_poses[i].second.z();
-            }
-
-            // Perform GP regression
-            MatrixXf m, s2;
-            train_time = ros::Time::now().toSec();
-            g.train(gp_train_x, gp_train_label);
-            train_time = ros::Time::now().toSec() - train_time;
-
-            test_time = ros::Time::now().toSec();
-            g.test(gp_test_x, m, s2);
-            test_time = ros::Time::now().toSec() - test_time;
-            ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);        
-            //for(int i = 0; i < gp_test_poses.size(); i++)
-
-            // Bayesian Optimal
-            double beta = sqrt(2*log(gp_test_poses.size()*pow(t, 2)*pow(PI, 2)/0.06));
-
-            double MI_EM_max = 0 ;
-            pair<point3d, point3d> candidates_next;
-            double MI_ES;
-            int ti;
-
-            for(int i = 0; i < gp_test_poses.size(); i++){
-
-                MI_ES = m(i) + beta*s2(i);
-                if(MI_ES > MI_EM_max){
-                     MI_EM_max = MI_ES;
-                     ti = i;
+                for (int i=0; i< candidates.size(); i++){
+                    gp_train_x(i,0) = candidates[i].first.x();
+                    gp_train_x(i,1) = candidates[i].first.y();
+                    gp_train_x(i,2) = candidates[i].second.z();
+                    gp_train_label(i) = MIs[i];
                 }
+
+                for (int i=0; i< gp_test_poses.size(); i++){
+                    gp_test_x(i,0) = gp_test_poses[i].first.x();
+                    gp_test_x(i,1) = gp_test_poses[i].first.y();
+                    gp_test_x(i,2) = gp_test_poses[i].second.z();
+                }
+
+                // Perform GP regression
+                MatrixXf m, s2;
+                train_time = ros::Time::now().toSec();
+                g.train(gp_train_x, gp_train_label);
+                train_time = ros::Time::now().toSec() - train_time;
+
+                test_time = ros::Time::now().toSec();
+                g.test(gp_test_x, m, s2);
+                test_time = ros::Time::now().toSec() - test_time;
+                ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);        
+                //for(int i = 0; i < gp_test_poses.size(); i++)
+
+                // Bayesian Optimal
+                double beta = sqrt(2*log(gp_test_poses.size()*pow(t, 2)*pow(PI, 2)/0.06));
+
+                double MI_EM_max = 0 ;
+                pair<point3d, point3d> candidates_next;
+                double MI_ES;
+                int ti;
+
+                for(int i = 0; i < gp_test_poses.size(); i++){
+
+                    MI_ES = m(i) + beta*s2(i);
+                    if(MI_ES > MI_EM_max){
+                         MI_EM_max = MI_ES;
+                         ti = i;
+                    }
+                }
+                candidates_next.first = point3d(gp_test_x(ti, 0), gp_test_x(ti, 1), candidates[0].first.z());
+                candidates_next.second = point3d(0, 0, gp_test_x(ti, 2));
+                //calculate MI
+                auto c = candidates_next;
+                Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
+                octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
+                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 1);
+                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
+                candidates.push_back(candidates_next);
+                MIs.push_back(MIs_next);
+                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 1.5));
+
+
             }
-            candidates_next.first = point3d(gp_test_x(ti, 0), gp_test_x(ti, 1), candidates[0].first.z());
-            candidates_next.second = point3d(0, 0, gp_test_x(ti, 2));
-            //calculate MI
-            auto c = candidates_next;
-            Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
-            octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
-            if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 1), 1);
-            else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
-            candidates.push_back(candidates_next);
-            MIs.push_back(MIs_next);
-            ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 1.5));
-
-
+            frontier_lines.clear();
+            unsigned long int size_c = candidates.size();
+            unsigned long int size_M = MIs.size();
+            ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
+            /*for(int i = 0; i < candidates.size(); i++) {
+                MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-laser_orig.x(), 2)+pow(candidates[i].first.y() - laser_orig.y(), 2), 1.5);
+            }*/
         }
-        frontier_lines.clear();
-        unsigned long int size_c = candidates.size();
-        unsigned long int size_M = MIs.size();
-        ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
-        /*for(int i = 0; i < candidates.size(); i++) {
-            MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-laser_orig.x(), 2)+pow(candidates[i].first.y() - laser_orig.y(), 2), 1.5);
-        }*/
-        
         
         // ###########################
         long int max_order[candidates.size()];
@@ -1231,14 +1248,20 @@ OS_INFO("%lu candidates generated.", candidates.size());
             ROS_INFO("Publishing %ld free cells", j);
             Free_marker_3d_pub.publish(Free_cubelist_3d); //publish octomap############
 
+            
+            ros::Time time_now = ros::Time::now();
+            double time_past = time_now.toSec() - time_init.toSec(); 
             // Send out results to file.
+            /*explo_log_file.open(logfilename, std::ofstream::out | std::ofstream::app);
+            explo_log_file << "DA Step: " << robot_step_counter << "  | Current Entropy: " << get_free_volume(cur_tree) << timeinfo << endl;
+            explo_log_file.close();*/
             explo_log_file.open(logfilename, std::ofstream::out | std::ofstream::app);
-            explo_log_file << "DA Step: " << robot_step_counter << "  | Current Entropy: " << get_free_volume(cur_tree) << endl;
+            explo_log_file << robot_step_counter <<"," << get_free_volume(cur_tree) << "," << time_past <<","<< candidates.size() << endl;
             explo_log_file.close();
 
         }
         else
-        {
+        { 
             ROS_ERROR("Failed to navigate to goal");
             p--;
             if(p < 0){

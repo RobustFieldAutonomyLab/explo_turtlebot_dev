@@ -1,0 +1,17 @@
+DA Step: 1  | Current Entropy: 56.0080x7f78c4d62de0
+DA Step: 2  | Current Entropy: 58.5960x7f78c4d62de0
+DA Step: 3  | Current Entropy: 59.2610x7f78c4d62de0
+DA Step: 4  | Current Entropy: 60.6830x7f78c4d62de0
+DA Step: 5  | Current Entropy: 60.9380x7f78c4d62de0
+DA Step: 6  | Current Entropy: 61.5320x7f78c4d62de0
+DA Step: 7  | Current Entropy: 70.6740x7f78c4d62de0
+DA Step: 8  | Current Entropy: 74.790x7f78c4d62de0
+DA Step: 9  | Current Entropy: 90.5910x7f78c4d62de0
+DA Step: 10  | Current Entropy: 91.6010x7f78c4d62de0
+DA Step: 11  | Current Entropy: 104.8480x7f78c4d62de0
+DA Step: 12  | Current Entropy: 106.2310x7f78c4d62de0
+DA Step: 13  | Current Entropy: 109.7870x7f78c4d62de0
+DA Step: 14  | Current Entropy: 114.3910x7f78c4d62de0
+DA Step: 15  | Current Entropy: 119.2090x7f78c4d62de0
+DA Step: 16  | Current Entropy: 119.7760x7f78c4d62de0
+DA Step: 17  | Current Entropy: 121.5570x7f78c4d62de0
