@@ -19,7 +19,7 @@
   <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
 
   <node pkg="explo_octo_3d" type="scan_to_pcl" name="scan_to_pcl" />
-  <!--node pkg="explo_octo_3d" type="laserscan_filter" name="laserscan_filter" /-->
+  <node pkg="explo_octo_3d" type="laserscan_filter" name="laserscan_filter" />
 
 
       <!-- Using octomap -->

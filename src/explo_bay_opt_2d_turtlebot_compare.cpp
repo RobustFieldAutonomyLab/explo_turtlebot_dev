@@ -44,7 +44,7 @@ bool kinect_flag = 0; // 0 : msg not received
 tf::TransformListener *tf_listener; 
 int octomap_seq = 0;
 
-bool BayOpt = true;
+bool BayOpt = false;
 
 
 
@@ -56,6 +56,16 @@ point3d position, laser_orig, velo_orig; // sensor positon
 ofstream explo_log_file; //what's that? #########
 std::string octomap_name_2d, octomap_name_3d;
 
+
+vector<int> sort_index(const vector<double> &v){
+    vector<int> idx(v.size());
+    iota(idx.begin(), idx.end(),0);
+
+    sort(idx.begin(), idx.end(), 
+        [&v](int i1, int i2) {return v[i1] > v[i2];});
+
+    return idx;
+}
 
 struct SensorModel {
     double horizontal_fov;
@@ -296,7 +306,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
-vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, const double R2_max, double n ) {
+vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, double R_interv, const double R2_max, int n_angle, int n_base, int n_candid) {
     double R2;        // Robot step, in meters.
     //double R2_min = 0.3;
     //double R2_max = 1.0;
@@ -305,15 +315,18 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     //double n = 10;
     octomap::OcTreeNode *n_cur_3d;
     vector<pair<point3d, point3d>> candidates;
+    vector<pair<point3d, point3d>> candidates_temp;
+    vector<pair<point3d, point3d>> candidates_temp2;
+    vector<double> dist;
     double z = sensor_orig.z();
     double x, y;
     double yaw;
     double distance_can;
-    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + 0.3){
+    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + R_interv){
 
 
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
-            for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n){ 
+            for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n_angle){ 
                 x = frontier_groups[u][0].x() - R2 * cos(yaw);
                 y = frontier_groups[u][0].y() - R2 * sin(yaw);
 
@@ -360,16 +373,32 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
 
                 if (candidate_valid)
                 {
-                    candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
+                    dist.push_back(sqrt(pow(x - laser_orig.x(), 2) + pow(y - laser_orig.y(), 2)));
+                    candidates_temp.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
                 }
             }
         }
+
+    }
+    vector<int> index_candid = sort_index(dist);
+    int n_candid_temp = candidates_temp.size();
+    for(int i = max(n_candid_temp - n_base, 0); i < n_candid_temp; i++ ){
+
+        candidates_temp2.push_back(candidates_temp[index_candid[i]]);
+    }
+
+    random_shuffle ( candidates_temp2.begin(), candidates_temp2.end() );
+
+    int n_candid_temp2 = candidates_temp2.size();
+    
+    for(int j = 0; j < min(n_candid_temp2, n_candid); j++){
+        candidates.push_back(candidates_temp2[j]);
     }
     return candidates;
 }
 
 //generate gp pose
-vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_groups, point3d sensor_orig, int n, const double R2_min, const double R2_max ) {
+/*vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_groups, point3d sensor_orig, int n, const double R2_min, const double R2_max, int m ) {
     double R2;        // Robot step, in meters.
 
 
@@ -377,6 +406,8 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
     //double n = 24;
     octomap::OcTreeNode *n_cur_3d;
     vector<pair<point3d, point3d>> candidates;
+    vector<pair<point3d, point3d>> candidates_temp;
+    vector<double> dist;
     double z = sensor_orig.z();
     double x, y;
     double yaw;
@@ -432,13 +463,20 @@ vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier
 
                 if (candidate_valid)
                 {
-                    candidates.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
+                    dist.push_back(sqrt(pow(x - laser_orig.x(), 2) + pow(y - laser_orig.y(), 2)));
+                    candidates_temp.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
                 }
             }
         }
+        vector<int> index_candid = sort_index(dist);
+        int n_candid = candidates_temp.size();
+        for(int i = max(n_candid - m, 0); i < n_candid; i++ ){
+
+            candidates.push_back(candidates_temp[index_candid[i]]);
+        }
     }
     return candidates;
-}
+}*/
 
 
 // Calculate Mutual Information. Input: octree, sensor_orig, hits, before
@@ -586,7 +624,7 @@ int main(int argc, char **argv) {
     bool arrived;
     
     // Update the initial location of the robot
-    for(int o =0; o < 6; o++){
+    /*for(int o =0; o < 6; o++){
         // Update the pose of the robot
         got_tf = false
 ;
@@ -633,7 +671,7 @@ int main(int argc, char **argv) {
         twist_cmd.angular.z = 0;
         pub_twist.publish(twist_cmd);
 
-    }
+    }*/
 
    
 
@@ -663,13 +701,22 @@ int main(int argc, char **argv) {
     } 
     ros::Duration(0.05).sleep();
     }
+   
     // Take a Fourth Scan
     ros::spinOnce();
+    
 
     double train_time, test_time;
 
     // steps robot taken, counter
-    int robot_step_counter = 0;
+    int robot_step_counter = 1;
+
+    ros::Time time_now = ros::Time::now();
+    double time_past = time_now.toSec() - time_init.toSec(); 
+                // Send out results to file.
+    explo_log_file.open(logfilename, std::ofstream::out | std::ofstream::app);
+    explo_log_file << robot_step_counter <<"," << get_free_volume(cur_tree) << "," << time_past <<","<< 0 << endl;
+    explo_log_file.close();
 
     while (ros::ok())
     {
@@ -679,12 +726,13 @@ int main(int argc, char **argv) {
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
-            if(entropy < 120){
+            if(entropy < 50){
                 level = 1;
                 frontier_lines = generate_frontier_points( cur_tree_2d );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
-                else candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.1, 0.1, 0.4, 10, 20, 10);
+                else candidates = generate_candidates(frontier_lines, laser_orig, 0.1, 0.1, 0.4, 10, 20, 7);
+                
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
             }
@@ -707,7 +755,7 @@ int main(int argc, char **argv) {
             //}
             
             
-            for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) {
+     i       for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) {
                 //o = o+frontier_lines[n].size();
                 Frontier_points_cubelist[n].points.resize(frontier_lines[n].size());
 
@@ -884,8 +932,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.4, 0.4, 10);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.1, 0.1, 0.4, 10, 20, 10);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.1, 0.1, 0.4, 10, 20, 7);
         }
         
         vector<double> MIs(candidates.size());
@@ -928,8 +976,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 0.4, 0.4);
-                else if(level == 2) gp_test_poses = generate_testing(frontier_lines, laser_orig, tn, 3.9, 3.9);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, laser_orig, 0.1, 0.1, 0.4, 10, 20, 20);
+                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, laser_orig, 3.9, 0.1, 3.9, 10, 20, 20);
 
                 //Initialize gp regression
                 GPRegressor g(100, 2, 0.01);// what's this?
@@ -1007,7 +1055,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
            }*/
 
         for(int j=0; j<candidates.size(); j++)
-           {
+        {
             p=-1;
            for(int m=0; m<=j; m++){
             
@@ -1024,7 +1072,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
             }
            max_order[p] = j;
-           }
+        }
         
         p = candidates.size()-1;
         max_idx = max_order[p];
@@ -1252,9 +1300,6 @@ OS_INFO("%lu candidates generated.", candidates.size());
             ros::Time time_now = ros::Time::now();
             double time_past = time_now.toSec() - time_init.toSec(); 
             // Send out results to file.
-            /*explo_log_file.open(logfilename, std::ofstream::out | std::ofstream::app);
-            explo_log_file << "DA Step: " << robot_step_counter << "  | Current Entropy: " << get_free_volume(cur_tree) << timeinfo << endl;
-            explo_log_file.close();*/
             explo_log_file.open(logfilename, std::ofstream::out | std::ofstream::app);
             explo_log_file << robot_step_counter <<"," << get_free_volume(cur_tree) << "," << time_past <<","<< candidates.size() << endl;
             explo_log_file.close();

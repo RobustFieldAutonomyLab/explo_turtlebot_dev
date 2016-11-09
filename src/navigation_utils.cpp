@@ -5,27 +5,14 @@
 #include <octomap/octomap.h>
 
 
-/*void RPY2Quaternion(double roll, double pitch, double yaw, double *x, double *y, double *z, double *w) {
-    double cr2, cp2, cy2, sr2, sp2, sy2;
-    cr2 = cos(roll*0.5);
-    cp2 = cos(pitch*0.5);
-    cy2 = cos(yaw*0.5);
-
-    sr2 = -sin(roll*0.5);
-    sp2 = -sin(pitch*0.5);
-    sy2 = sin(yaw*0.5);
-
-    *w = cr2*cp2*cy2 + sr2*sp2*sy2;
-    *x = sr2*cp2*cy2 - cr2*sp2*sy2;
-    *y = cr2*sp2*cy2 + sr2*cp2*sy2;
-    *z = cr2*cp2*sy2 - sr2*sp2*cy2;
-}*/
-
-// bool goToDest(point3d go_posi, double qx, double qy, double qz, double qw) {
+ 
 bool goToDest(point3d go_posi, tf::Quaternion q) {
 
   // make an action client that spins up a thread
   MoveBaseClient ac("move_base", true);
+
+  // cancel previous goals
+  ac.cancelAllGoals();
 
   //wait for the action server to come up
   while(!ac.waitForServer(ros::Duration(5.0))){
@@ -54,14 +41,15 @@ bool goToDest(point3d go_posi, tf::Quaternion q) {
   ROS_INFO("Sending goal to (%3.2f, %3.2f, %3.2f)", go_posi.x(), go_posi.y(), go_posi.z());
   ac.sendGoal(goal);
 
-  ac.waitForResult();
+  // while(ros::ok())
+  ac.waitForResult(ros::Duration(30.0));
 
   // Returns true iff we reached the goal
   if(ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
     return true;
   else
     return false;
-}
+  }
 
 
 /*int main(int argc, char** argv){
