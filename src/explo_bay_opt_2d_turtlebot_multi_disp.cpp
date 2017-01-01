@@ -5,8 +5,7 @@
 #include "covMaterniso3.h"
 #include "frontier.h"
 #include "candidates.h"
-
-using namespace cv;
+#include "kmean.h"
 using namespace std;
 // using namespace std::chrono;
 /*
@@ -26,7 +25,7 @@ bool kinect_flag = 0; // 0 : msg not received
 tf::TransformListener *tf_listener; 
 int octomap_seq = 0;
 
-bool BayOpt = false;
+bool BayOpt = true;
 
 
 
@@ -143,14 +142,14 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
                     frontier_true = true;
                     continue;            
                 }
-                /*else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
                 {
                     num_free++;
 
                 }
 
             }
-            if(frontier_true)// && num_free >5 )
+            if(frontier_true&& num_free >5 )
             {
 
                 double x_frontier = x_cur;
@@ -527,6 +526,57 @@ int main(int argc, char **argv) {
     bool got_tf = false;
     bool arrived;
     
+    // Update the initial location of the robot
+    for(int o =0; o < 6; o++){
+        // Update the pose of the robot
+        got_tf = false
+;
+        while(!got_tf){
+        try{
+            tf_listener->lookupTransform("/map", "/camera_depth_frame", ros::Time(0), transform);// need to change tf of kinect###############
+            kinect_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+            got_tf = true;
+        }
+        catch (tf::TransformException ex) {
+            ROS_WARN("Wait for tf: velodyne to map"); 
+        } 
+        ros::Duration(0.05).sleep();
+        }
+
+        got_tf = false;
+        while(!got_tf){
+        try{
+            tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
+            laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+            got_tf = true;
+        }
+        catch (tf::TransformException ex) {
+            ROS_WARN("Wait for tf: laser to map"); 
+        } 
+        ros::Duration(0.05).sleep();
+        }
+
+        // Take a Scan
+        ros::spinOnce();
+
+        // Rotate another 60 degrees
+        twist_cmd.linear.x = twist_cmd.linear.y = twist_cmd.angular.z = 0;
+        ros::Time start_turn = ros::Time::now();
+
+        ROS_WARN("Rotate 60 degrees");
+        while (ros::Time::now() - start_turn < ros::Duration(2.6)){ // turning duration - second
+        twist_cmd.angular.z = 0.6; // turning speed
+        // turning angle = turning speed * turning duration / 3.14 * 180
+        pub_twist.publish(twist_cmd);
+        ros::Duration(0.05).sleep();
+        }
+        // stop
+        twist_cmd.angular.z = 0;
+        pub_twist.publish(twist_cmd);
+
+    }
+
+   
 
     // Update the pose of the robot
     got_tf = false;
@@ -579,21 +629,79 @@ int main(int argc, char **argv) {
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
-            if(entropy < 50){
+            if(entropy < 140){
                 level = 1;
                 frontier_lines = generate_frontier_points( cur_tree_2d );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 10);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 7);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
             }
+
+            else if(entropy < 160){
+                level = 2;
+                frontier_lines = generate_frontier_points_3d( cur_tree, 1.5 );
+                candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
+            }
+
             else{
                 ROS_INFO("Exploration is done");
                 while(1);
             }
             
+            /*unsigned long int t = 0;
+            
+            visualization_msgs::Marker Frontier_points_cubelist[frontier_lines.size()];
+            //try if really need to resize#########################################################
+            //for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) {
+                //Frontier_points_cubelist[n].points.resize(frontier_lines[n].size());
+            //}
+            
+            
+     i       for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) {
+                //o = o+frontier_lines[n].size();
+                Frontier_points_cubelist[n].points.resize(frontier_lines[n].size());
+
+                //Frontier_points_cubelist.points.resize(frontier_lines[n].size());
+                //ROS_INFO("frontier points %ld", o);
+                now_marker = ros::Time::now();
+                Frontier_points_cubelist[n].header.frame_id = "map";
+                Frontier_points_cubelist[n].header.stamp = now_marker;
+                Frontier_points_cubelist[n].ns = "frontier_points_array";
+                Frontier_points_cubelist[n].id = 0;
+                Frontier_points_cubelist[n].type = visualization_msgs::Marker::CUBE_LIST;
+                Frontier_points_cubelist[n].action = visualization_msgs::Marker::ADD;
+                Frontier_points_cubelist[n].scale.x = octo_reso;
+                Frontier_points_cubelist[n].scale.y = octo_reso;
+                Frontier_points_cubelist[n].scale.z = octo_reso;
+                Frontier_points_cubelist[n].color.a = 1.0;
+                Frontier_points_cubelist[n].color.r = (double)255/255;
+                Frontier_points_cubelist[n].color.g = 0;
+                Frontier_points_cubelist[n].color.b = (double)6*n/255;
+                Frontier_points_cubelist[n].lifetime = ros::Duration();
+                
+                //int l = 0;
+                geometry_msgs::Point q;
+                for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
+
+                    q.x = frontier_lines[n][m].x();
+                    q.y = frontier_lines[n][m].y();
+                    q.z = frontier_lines[n][m].z()+octo_reso;
+                    Frontier_points_cubelist[n].points.push_back(q);   
+OS_INFO("%lu candidates generated.", candidates.size());
+                }
+                t++;
+                Frontier_points_pub.publish(Frontier_points_cubelist[n]); //publish frontier_points############
+                Frontier_points_cubelist[n].points.clear(); 
+            }
+            
+            ROS_INFO("Publishing %ld frontier_lines", t);*/
+            
+            //int delete_points = 0;
+            
+            //frontier_lines.clear();//in the next line
             unsigned long int o = 0;
             for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines.size(); e++) {
                 o = o+frontier_lines[e].size();
@@ -683,9 +791,22 @@ int main(int argc, char **argv) {
             
             Frontier_points_3d_pub.publish(Frontier_points_cubelist_3d); //publish frontier_points
             Frontier_points_cubelist_3d.points.clear();
-    
 
+
+
+
+
+    
+        // Generate Candidates
+        //vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, kinect_orig, 0.3, 1); 
+        // Generate Testing poses
         ROS_INFO("%lu candidates generated.", candidates.size());
+
+        // Generate Testing poses
+        //vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, kinect_orig);
+
+
+        //frontier_lines.clear();
 
         while(candidates.size() < 1)
         {
@@ -716,8 +837,8 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 10);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 7);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
         }
         
         vector<double> MIs(candidates.size());
@@ -744,8 +865,8 @@ int main(int argc, char **argv) {
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
             //MIs_temp[i] = calc_MI(cur_tree, c.first, hits, before);
-            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 1);
-            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
             
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
@@ -760,8 +881,8 @@ int main(int argc, char **argv) {
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 20);
-                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 10, 20, 20);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 100);
+                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 100);
 
                 //Initialize gp regression
                 GPRegressor g(100, 2, 0.01);// what's this?
@@ -814,11 +935,11 @@ int main(int argc, char **argv) {
                 auto c = candidates_next;
                 Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
                 octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
-                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 1);
-                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5);
+                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
                 candidates.push_back(candidates_next);
                 MIs.push_back(MIs_next);
-                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 1.5));
+                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5));
 
 
             }
@@ -830,6 +951,17 @@ int main(int argc, char **argv) {
                 MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-kinect_orig.x(), 2)+pow(candidates[i].first.y() - kinect_orig.y(), 2), 1.5);
             }*/
         }
+
+        //Clustering candidates by kmean
+
+        int K = 5;//how many robots
+        int count = 1;
+        int max_iter = 10;
+        int epsilon = 2;
+        int attempt = 10;
+        int flag = 1.0;
+
+        Mat labels = kmean_explo(candidates, K, count, max_iter, epsilon, attempt, flag);
         
         // ###########################
         long int max_order[candidates.size()];
@@ -963,7 +1095,7 @@ int main(int argc, char **argv) {
             ros::spinOnce();
             ROS_INFO("Succeed, new Map Free Volume: %f", get_free_volume(cur_tree));
             robot_step_counter++;
-
+            
             /*
             // Prepare the header for occupied array
             now_marker = ros::Time::now();
@@ -1091,6 +1223,7 @@ int main(int argc, char **argv) {
             msg_octomap.header.stamp = ros::Time::now();
             Octomap_pub.publish(msg_octomap);
 
+            
             ros::Time time_now = ros::Time::now();
             double time_past = time_now.toSec() - time_init.toSec(); 
             // Send out results to file.

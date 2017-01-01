@@ -1,34 +1,14 @@
-#include <iostream>
-#include <fstream>
-#include <chrono>
-#include <algorithm>
-#include <iterator>
-#include <ctime>
-
-#include <pcl/point_types.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <tf/transform_listener.h>
-#include "pcl_ros/transforms.h"
-
-#include <octomap/octomap.h>
-#include <ros/ros.h>
-#include <pcl_ros/point_cloud.h>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
-#include <geometry_msgs/Pose.h>
-#include <octomap_msgs/Octomap.h>
-#include <octomap_msgs/conversions.h>
-#include <octomap_msgs/GetOctomap.h>
+//Related headers:
+#include "exploration.h"
 #include "navigation_utils.h"
-#include <ros/callback_queue.h>
 #include "gpregressor.h"
 #include "covMaterniso3.h"
-
+#include "frontier.h"
+#include "candidates.h"
 
 using namespace std;
 // using namespace std::chrono;
-
+/*
 typedef octomap::point3d point3d;
 typedef pcl::PointXYZ PointType;
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
@@ -255,7 +235,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
                                     {
                                     num_free++;
 
-                                     }*/
+                                     }
      
                         }
                 // }
@@ -400,88 +380,6 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     return candidates;
 }
 
-//generate gp pose
-/*vector<pair<point3d, point3d>> generate_testing(vector<vector<point3d>> frontier_groups, point3d sensor_orig, int n, const double R2_min, const double R2_max, int m ) {
-    double R2;        // Robot step, in meters.
-
-
-    double R3 = 0.1;       // to other frontiers
-    //double n = 24;
-    octomap::OcTreeNode *n_cur_3d;
-    vector<pair<point3d, point3d>> candidates;
-    vector<pair<point3d, point3d>> candidates_temp;
-    vector<double> dist;
-    double z = sensor_orig.z();
-    double x, y;
-    double yaw;
-    double distance_can;
-
-    for(R2 = R2_min; R2 <= R2_max; R2 = R2 + 0.1){
-
-        for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
-            for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n){ 
-                x = frontier_groups[u][0].x() - R2 * cos(yaw);
-                y = frontier_groups[u][0].y() - R2 * sin(yaw);
-
-                bool candidate_valid = true;
-                n_cur_3d = cur_tree->search(point3d(x, y, z));
-
-
-                if (!n_cur_3d) {
-                    candidate_valid = false;
-                    continue;
-                }
-
-                if(sqrt(pow(x - sensor_orig.x(),2) + pow(y - sensor_orig.y(),2)) < 0.15){
-                  candidate_valid = false;// delete candidates close to sensor_orig
-                  continue;
-                }
-
-                else{
-
-                    // check candidate to other frontiers;
-                    for(vector<vector<point3d>>::size_type n = 0; n < frontier_groups.size(); n++)
-                        for(vector<point3d>::size_type m = 0; m < frontier_groups[n].size(); m++){
-                            distance_can = sqrt(pow(x - frontier_groups[n][m].x(),2) + pow(y - frontier_groups[n][m].y(),2));
-                            if(distance_can < R3){
-                                candidate_valid = false;        //delete candidates close to frontier
-                                continue;
-                            }
-                    }
-                
-                    // volumn check
-                    for (double x_buf = x - 0.3; x_buf < x + 0.3; x_buf += octo_reso) 
-                        for (double y_buf = y - 0.3; y_buf < y + 0.3; y_buf += octo_reso)
-                            for (double z_buf = sensor_orig.z()-0.2; z_buf <sensor_orig.z()+0.2; z_buf += octo_reso)
-                            {
-                                n_cur_3d = cur_tree->search(point3d(x_buf, y_buf, z_buf));
-                                if(!n_cur_3d)       continue;
-                                else if (cur_tree->isNodeOccupied(n_cur_3d)){
-                                candidate_valid = false;//delete candidates which have ccupied cubes around in 3D area
-                                continue;
-                                }  
-                            }
-
-                }
-
-                if (candidate_valid)
-                {
-                    dist.push_back(sqrt(pow(x - laser_orig.x(), 2) + pow(y - laser_orig.y(), 2)));
-                    candidates_temp.push_back(make_pair<point3d, point3d>(point3d(x, y, z), point3d(0.0, 0.0, yaw)));
-                }
-            }
-        }
-        vector<int> index_candid = sort_index(dist);
-        int n_candid = candidates_temp.size();
-        for(int i = max(n_candid - m, 0); i < n_candid; i++ ){
-
-            candidates.push_back(candidates_temp[index_candid[i]]);
-        }
-    }
-    return candidates;
-}*/
-
-
 // Calculate Mutual Information. Input: octree, sensor_orig, hits, before
 double calc_MI(const octomap::OcTree *octree, const point3d &sensor_orig, const octomap::Pointcloud &hits, const double before) {
     auto octree_copy = new octomap::OcTree(*octree);
@@ -553,6 +451,7 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
     delete cloud_local;
 
 }
+*/
 
 int main(int argc, char **argv) {
 
@@ -635,7 +534,7 @@ int main(int argc, char **argv) {
         while(!got_tf){
         try{
             tf_listener->lookupTransform("/map", "/camera_depth_frame", ros::Time(0), transform);// need to change tf of kinect###############
-            velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+            kinect_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
             got_tf = true;
         }
         catch (tf::TransformException ex) {
@@ -684,7 +583,7 @@ int main(int argc, char **argv) {
     while(!got_tf){
     try{
         tf_listener->lookupTransform("/map", "/camera_depth_frame", ros::Time(0), transform);// need to change tf of kinect###############
-        velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+        kinect_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
         got_tf = true;
     }
     catch (tf::TransformException ex) {
@@ -734,8 +633,8 @@ int main(int argc, char **argv) {
                 level = 1;
                 frontier_lines = generate_frontier_points( cur_tree_2d );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.5, 0.25, 2, 20, 100, 15);
-                else candidates = generate_candidates(frontier_lines, laser_orig, 0.5, 0.25, 2, 20, 100, 12);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -744,7 +643,7 @@ int main(int argc, char **argv) {
             else if(entropy < 160){
                 level = 2;
                 frontier_lines = generate_frontier_points_3d( cur_tree, 1.5 );
-                candidates = generate_candidates(frontier_lines, laser_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
+                candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
             }
 
             else{
@@ -899,12 +798,12 @@ OS_INFO("%lu candidates generated.", candidates.size());
 
     
         // Generate Candidates
-        //vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, laser_orig, 0.3, 1); 
+        //vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, kinect_orig, 0.3, 1); 
         // Generate Testing poses
         ROS_INFO("%lu candidates generated.", candidates.size());
 
         // Generate Testing poses
-        //vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, laser_orig);
+        //vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, kinect_orig);
 
 
         //frontier_lines.clear();
@@ -938,8 +837,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.5, 0.25, 2, 20, 100, 15);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, laser_orig, 0.5, 0.25, 2, 20, 100, 12);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
         }
         
         vector<double> MIs(candidates.size());
@@ -966,8 +865,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
             //MIs_temp[i] = calc_MI(cur_tree, c.first, hits, before);
-            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
-            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
+            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
             
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
@@ -982,8 +881,8 @@ OS_INFO("%lu candidates generated.", candidates.size());
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, laser_orig, 0.5, 0.25, 2, 20, 100, 100);
-                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, laser_orig, 3.9, 0.1, 3.9, 20, 100, 100);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 100);
+                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 100);
 
                 //Initialize gp regression
                 GPRegressor g(100, 2, 0.01);// what's this?
@@ -1036,11 +935,11 @@ OS_INFO("%lu candidates generated.", candidates.size());
                 auto c = candidates_next;
                 Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
                 octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
-                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 0.5);
-                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-laser_orig.x(), 2)+pow(c.first.y() - laser_orig.y(), 2), 0.5);
+                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5);
+                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
                 candidates.push_back(candidates_next);
                 MIs.push_back(MIs_next);
-                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next/pow(pow(candidates_next.first.x()-laser_orig.x(), 2)+pow(candidates_next.first.y() - laser_orig.y(), 2), 0.5));
+                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next/pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5));
 
 
             }
@@ -1049,7 +948,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
             unsigned long int size_M = MIs.size();
             ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
             /*for(int i = 0; i < candidates.size(); i++) {
-                MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-laser_orig.x(), 2)+pow(candidates[i].first.y() - laser_orig.y(), 2), 1.5);
+                MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-kinect_orig.x(), 2)+pow(candidates[i].first.y() - kinect_orig.y(), 2), 1.5);
             }*/
         }
         
@@ -1159,7 +1058,7 @@ OS_INFO("%lu candidates generated.", candidates.size());
             while(!got_tf){
             try{
                 tf_listener->lookupTransform("/map", "/camera_depth_frame", ros::Time(0), transform);// need to change tf of kinect###############
-                velo_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+                kinect_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
                 got_tf = true;
             }
             catch (tf::TransformException ex) {
