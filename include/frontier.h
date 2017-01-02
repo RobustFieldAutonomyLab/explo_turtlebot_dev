@@ -22,7 +22,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
         frontier_true = false;
         unsigned long int num_free = 0; //number of free cube around frontier, for filtering out fake frontier
 
-      if(!cur_tree_2d->isNodeOccupied(*n))
+      if(!octree->isNodeOccupied(*n))
         {
          double x_cur = n.getX();
          double y_cur = n.getY();
@@ -31,20 +31,20 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
          for (double x_cur_buf = x_cur - octo_reso; x_cur_buf < x_cur + octo_reso; x_cur_buf += octo_reso)
              for (double y_cur_buf = y_cur - octo_reso; y_cur_buf < y_cur + octo_reso; y_cur_buf += octo_reso)
             {
-                n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
+                n_cur_frontier = octree->search(point3d(x_cur_buf, y_cur_buf, z_cur));
                 if(!n_cur_frontier)
                 {
                     frontier_true = true;
                     continue;            
                 }
-                else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                else if (!octree->isNodeOccupied(n_cur_frontier))
                 {
                     num_free++;
 
                 }
 
             }
-            if(frontier_true && num_free >5 )//filter out fake frontier by counting free
+            if(frontier_true)// && num_free >5 )//filter out fake frontier by counting free
             {
 
                 double x_frontier = x_cur;
@@ -106,7 +106,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
         frontier_true = false;
         unsigned long int num_free = 0; //number of free cube around frontier, for filtering out fake frontier
 
-      if(!cur_tree_2d->isNodeOccupied(*n))
+      if(!octree->isNodeOccupied(*n))
         {
             if(n.getZ() == z)// frontier on specific height
             {
@@ -120,13 +120,13 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
                        for (double y_cur_buf = y_cur - octo_reso; y_cur_buf < y_cur + octo_reso; y_cur_buf += octo_reso)
                        //for (double z_cur_buf = z_cur - 0.1; z_cur_buf < z_cur + 0.15; z_cur_buf += octo_reso)
                         {
-                           n_cur_frontier = cur_tree_2d->search(point3d(x_cur_buf, y_cur_buf, z_cur));
+                           n_cur_frontier = octree->search(point3d(x_cur_buf, y_cur_buf, z_cur));
                            if(!n_cur_frontier)
                             {
                               frontier_true = true;
                               continue;            
                             }
-                            else if (!cur_tree_2d->isNodeOccupied(n_cur_frontier))
+                            else if (!octree->isNodeOccupied(n_cur_frontier))
                             {
                                num_free++;
                             }     

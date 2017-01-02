@@ -37,7 +37,7 @@ const double octo_reso = 0.1; // resolution
 
 octomap::OcTree* cur_tree;  // include sensor date, sensor position and sensor_max_range
 octomap_msgs::Octomap msg_octomap;
-octomap::OcTree* cur_tree_2d;
+//octomap::OcTree* cur_tree_2d;
 
 tf::TransformListener *tf_listener; 
 
@@ -163,7 +163,7 @@ void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {
     delete cloud_local;
 }
 
-void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
+/*void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
 {
 
     pcl::PCLPointCloud2 cloud2;
@@ -191,5 +191,5 @@ void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
     delete cloud;
     delete cloud_local;
 
-}
+}*/
 #endif

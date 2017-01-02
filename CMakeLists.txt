@@ -133,14 +133,10 @@ add_library(covMatern           src/covMaterniso3.cpp)
 
 add_executable(scan_to_pcl          src/scan_to_pcl.cpp)
 add_executable(laserscan_filter          src/laserscan_filter.cpp)
-add_executable(explo_sam_2d_turtlebot     src/explo_sam_2d_turtlebot.cpp)
 add_executable(pointcloud2_to_laserscan    src/pointcloud2_to_laserscan.cpp)
 add_executable(explo_bay_opt_2d_turtlebot_demo     src/explo_bay_opt_2d_turtlebot_demo.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot_compare     src/explo_bay_opt_2d_turtlebot_compare.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot_multi_disp     src/explo_bay_opt_2d_turtlebot_multi_disp.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
-add_executable(explo_bay_opt_2d_turtlebot_test     src/explo_bay_opt_2d_turtlebot_test.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
-add_executable(gotodest          src/gotodest.cpp src/navigation_utils.cpp)
-add_executable(explo_sam_2d_turtlebot_without_go     src/explo_sam_2d_turtlebot_without_go.cpp)
 
 
 ## Add cmake target dependencies of the executable/library
@@ -148,11 +144,6 @@ add_executable(explo_sam_2d_turtlebot_without_go     src/explo_sam_2d_turtlebot_
 
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(explo_sam_2d_turtlebot
-  ${catkin_LIBRARIES}
-  ${OCTOMAP_LIBRARIES}
-  navigation
-)
 
 target_link_libraries(explo_bay_opt_2d_turtlebot_demo
   ${catkin_LIBRARIES}
@@ -173,16 +164,6 @@ target_link_libraries(explo_bay_opt_2d_turtlebot_multi_disp
   navigation
 )
 
-target_link_libraries(explo_bay_opt_2d_turtlebot_test
-  ${catkin_LIBRARIES}
-  ${OCTOMAP_LIBRARIES}
-)
-
-target_link_libraries(explo_sam_2d_turtlebot_without_go
-  ${catkin_LIBRARIES}
-  ${OCTOMAP_LIBRARIES}
-)
-
 target_link_libraries(scan_to_pcl
   ${catkin_LIBRARIES}
 )
@@ -193,12 +174,6 @@ target_link_libraries(laserscan_filter
 
 target_link_libraries(pointcloud2_to_laserscan
   ${catkin_LIBRARIES}
-)
-
-target_link_libraries(gotodest
-  ${catkin_LIBRARIES}
-  ${OCTOMAP_LIBRARIES}
-  navigation
 )
 
 

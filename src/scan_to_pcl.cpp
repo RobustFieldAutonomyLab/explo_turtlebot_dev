@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     hokuyo_sub = nh.subscribe<sensor_msgs::LaserScan>("/scan_kinect", 1, hokuyo_callbacks);// changed here##########
 
     
-    pcl_from_scan = nh.advertise<PointCloud>("hokuyo_points", 1);
+    pcl_from_scan = nh.advertise<PointCloud>("kinect_points", 1);
 
     while (ros::ok())
     {

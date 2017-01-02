@@ -1,5 +1,19 @@
 <launch>
-  <arg name="scan_topic"  default="scan_kinect" />
+  <node pkg="hokuyo_node" type="hokuyo_node" name="hokuyo" />
+  <include file="$(find turtlebot_bringup)/launch/3dsensor.launch">
+  <!--  <arg name="rgb_processing" value="true" />
+    <arg name="depth_registration" value="true" />
+    <arg name="depth_processing" value="true" />
+    <arg name="scan_processing" value="true" />           -->
+    
+    <!-- We must specify an absolute topic name because if not it will be prefixed by "$(arg camera)".
+         Probably is a bug in the nodelet manager: https://github.com/ros/nodelet_core/issues/7 --> 
+    <!--arg name="scan_topic" value="/scan_kinect" /-->
+  </include>
+
+  <node pkg="tf" type="static_transform_publisher" name="base_footprint_to_laser" args="0 0 0.35 0 0 0 base_footprint laser 50" />
+  
+  <arg name="scan_topic"  default="scan" />
   <arg name="base_frame"  default="base_footprint"/>
   <arg name="odom_frame"  default="odom"/>
 
@@ -8,8 +22,8 @@
     <param name="base_frame" value="$(arg base_frame)"/>
     <param name="odom_frame" value="$(arg odom_frame)"/>
     <param name="map_update_interval" value="5.0"/>
-    <param name="maxUrange" value="7.9"/>
-    <param name="maxRange" value="8.1"/>
+    <param name="maxUrange" value="19"/>
+    <param name="maxRange" value="20"/>
     <param name="sigma" value="0.05"/>
     <param name="kernelSize" value="1"/>
     <param name="lstep" value="0.05"/>
@@ -47,4 +61,8 @@
     <param name="lasamplestep" value="0.005"/>
     <remap from="scan" to="$(arg scan_topic)"/>
   </node>
+
+  <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
+
+
 </launch>
