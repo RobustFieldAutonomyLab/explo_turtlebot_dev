@@ -42,7 +42,7 @@ bool goToDest(point3d go_posi, tf::Quaternion q) {
   ac.sendGoal(goal);
 
   // while(ros::ok())
-  ac.waitForResult(ros::Duration(30.0));
+  ac.waitForResult(ros::Duration(120.0));
 
   // Returns true iff we reached the goal
   if(ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)

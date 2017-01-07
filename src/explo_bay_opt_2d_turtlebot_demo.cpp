@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
             int level = 0;
             if(entropy < 300){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree,0.45 );
+                frontier_lines = generate_frontier_points_3d( cur_tree,kinect_orig.z() );
 
                 if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
                 else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);

@@ -41,7 +41,7 @@ octomap_msgs::Octomap msg_octomap;
 
 tf::TransformListener *tf_listener; 
 
-bool BayOpt = false;//applying bayesian optimization or not
+bool BayOpt = true;//applying bayesian optimization or not
 
  
 point3d position, laser_orig, kinect_orig; // sensor positon

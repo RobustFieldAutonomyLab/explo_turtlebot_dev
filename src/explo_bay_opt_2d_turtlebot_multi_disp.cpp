@@ -4,7 +4,7 @@
 #include "gpregressor.h"
 #include "covMaterniso3.h"
 #include "frontier.h"
-#include "candidates.h"
+#include "candidates_multi.h"
 #include "kmean.h"
 using namespace std;
 // using namespace std::chrono;
@@ -154,21 +154,21 @@ int main(int argc, char **argv) {
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
-            if(entropy < 140){
+            if(entropy < 1000){
                 level = 1;
                 frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z());
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 5);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 5);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
             }
 
-            else if(entropy < 160){
+            else if(entropy < 2000){
                 level = 2;
                 frontier_lines = generate_frontier_points_3d( cur_tree, 1.5 );
-                candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
+                candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 5); 
             }
 
             else{
@@ -312,8 +312,8 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 5);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 5);
         }
         
         vector<double> MIs(candidates.size());
@@ -349,84 +349,58 @@ int main(int argc, char **argv) {
 
 
         // Bayesian Opt
-        if(BayOpt){
-            double MIs_next;
+        
             
-            for(unsigned long int t = 1; t < 4; t++){
-                int tn = 20;
-                // Generate Testing poses
-                vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 100);
-                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 100);
+        // Generate Testing poses
+        vector<pair<point3d, point3d>> gp_test_poses;
+        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 2, 20);
+        else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.2, 3.9, 20);
 
-                //Initialize gp regression
-                GPRegressor g(100, 2, 0.01);// what's this?
-                MatrixXf gp_train_x(candidates.size(), 3), gp_train_label(candidates.size(), 1), gp_test_x(gp_test_poses.size(), 3);
+        //Initialize gp regression
+        GPRegressor g(100, 2, 0.01);// what's this?
+        MatrixXf gp_train_x(candidates.size(), 3), gp_train_label(candidates.size(), 1), gp_test_x(gp_test_poses.size(), 3);
 
-                for (int i=0; i< candidates.size(); i++){
-                    gp_train_x(i,0) = candidates[i].first.x();
-                    gp_train_x(i,1) = candidates[i].first.y();
-                    gp_train_x(i,2) = candidates[i].second.z();
-                    gp_train_label(i) = MIs[i];
-                }
+        for (int i=0; i< candidates.size(); i++){
+            gp_train_x(i,0) = candidates[i].first.x();
+            gp_train_x(i,1) = candidates[i].first.y();
+            gp_train_x(i,2) = candidates[i].second.z();
+            gp_train_label(i) = MIs[i];
+        }
 
-                for (int i=0; i< gp_test_poses.size(); i++){
-                    gp_test_x(i,0) = gp_test_poses[i].first.x();
-                    gp_test_x(i,1) = gp_test_poses[i].first.y();
-                    gp_test_x(i,2) = gp_test_poses[i].second.z();
-                }
+        for (int i=0; i< gp_test_poses.size(); i++){
+            gp_test_x(i,0) = gp_test_poses[i].first.x();
+            gp_test_x(i,1) = gp_test_poses[i].first.y();
+            gp_test_x(i,2) = gp_test_poses[i].second.z();
+        }
 
-                // Perform GP regression
-                MatrixXf m, s2;
-                train_time = ros::Time::now().toSec();
-                g.train(gp_train_x, gp_train_label);
-                train_time = ros::Time::now().toSec() - train_time;
+        // Perform GP regression
+        MatrixXf m, s2;
+        train_time = ros::Time::now().toSec();
+        g.train(gp_train_x, gp_train_label);
+        train_time = ros::Time::now().toSec() - train_time;
 
-                test_time = ros::Time::now().toSec();
-                g.test(gp_test_x, m, s2);
-                test_time = ros::Time::now().toSec() - test_time;
-                ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);        
-                //for(int i = 0; i < gp_test_poses.size(); i++)
+        test_time = ros::Time::now().toSec();
+        g.test(gp_test_x, m, s2);
+        test_time = ros::Time::now().toSec() - test_time;
+        ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);
+        candidates.resize(gp_test_poses.size());
+        MIs.resize(gp_test_poses.size());        
+        for(int i = 0; i < gp_test_poses.size(); i++){
+            MIs[i] = m(i);
+            candidates[i] = gp_test_poses[i];
+        }
 
-                // Bayesian Optimal
-                double beta = sqrt(2*log(gp_test_poses.size()*pow(t, 2)*pow(PI, 2)/0.06));
+        frontier_lines.clear();
+        unsigned long int size_c = candidates.size();
+        unsigned long int size_M = MIs.size();
+        ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
 
-                double MI_EM_max = 0 ;
-                pair<point3d, point3d> candidates_next;
-                double MI_ES;
-                int ti;
-
-                for(int i = 0; i < gp_test_poses.size(); i++){
-
-                    MI_ES = m(i) + beta*s2(i);
-                    if(MI_ES > MI_EM_max){
-                         MI_EM_max = MI_ES;
-                         ti = i;
-                    }
-                }
-                candidates_next.first = point3d(gp_test_x(ti, 0), gp_test_x(ti, 1), candidates[0].first.z());
-                candidates_next.second = point3d(0, 0, gp_test_x(ti, 2));
-                //calculate MI
-                auto c = candidates_next;
-                Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
-                octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
-                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5);
-                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
-                candidates.push_back(candidates_next);
-                MIs.push_back(MIs_next);
-                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5));
-
-
-            }
-            frontier_lines.clear();
-            unsigned long int size_c = candidates.size();
-            unsigned long int size_M = MIs.size();
-            ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
             /*for(int i = 0; i < candidates.size(); i++) {
                 MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-kinect_orig.x(), 2)+pow(candidates[i].first.y() - kinect_orig.y(), 2), 1.5);
             }*/
-        }
+        
 
+        /*
         //Clustering candidates by kmean
 
         int K = 5;//how many robots
@@ -437,7 +411,7 @@ int main(int argc, char **argv) {
         int flag = 1.0;
 
         Mat labels = kmean_explo(candidates, K, count, max_iter, epsilon, attempt, flag);
-        
+        */
         // ###########################
         long int max_order[candidates.size()];
         //long int equ_order[candidates.size()];
@@ -507,7 +481,7 @@ int main(int argc, char **argv) {
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
-        //candidates.clear();
+        candidates.clear();
 
         // Publish the goal as a Marker in rviz
         visualization_msgs::Marker marker;

@@ -6,7 +6,7 @@
 using namespace cv;
 using namespace std;
 
-vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) {
+/*vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) {
 
     vector<vector<point3d>> frontier_lines;
     vector<point3d> frontier_points;
@@ -84,7 +84,7 @@ vector<vector<point3d>> generate_frontier_points(const octomap::OcTree *octree) 
         
     }
     return frontier_lines;
-}
+}*/
 
 
 
@@ -108,7 +108,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 
       if(!octree->isNodeOccupied(*n))
         {
-            if(n.getZ() == z)// frontier on specific height
+            if(n.getZ() >= z-0.15*octo_reso&&n.getZ() <= z+0.15*octo_reso)// frontier on specific height
             {
                 double x_cur = n.getX();
                 double y_cur = n.getY();
