@@ -88,7 +88,7 @@ using namespace std;
 
 
 
-vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octree, const double z) {
+vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octree, const double z, const double lower, const double upper) {
 
     vector<vector<point3d>> frontier_lines;
     vector<point3d> frontier_points;
@@ -96,7 +96,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 1; //group length
+    double R1 = 0.5; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -108,7 +108,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
 
       if(!octree->isNodeOccupied(*n))
         {
-            if(n.getZ() >= z-0.15*octo_reso&&n.getZ() <= z+0.15*octo_reso)// frontier on specific height
+            if(n.getZ() >= z+lower&&n.getZ() <= z+upper)// frontier on specific height
             {
                 double x_cur = n.getX();
                 double y_cur = n.getY();
@@ -148,17 +148,28 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
                     }
                     else
                     {
-                        bool belong_old = false;            
+                        bool belong_old = false;
+                        bool repet = false;           
 
                         for(vector<vector<point3d>>::size_type u = 0; u < frontier_lines.size(); u++){
                                 distance = sqrt(pow(frontier_lines[u][0].x()-x_frontier, 2)+pow(frontier_lines[u][0].y()-y_frontier, 2)) ;
-                                if(distance < R1){
-                                   frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
-                                   belong_old = true;
-                                   break;
+                                if(!repet){
+                                  for(vector<point3d>::size_type v = 0; v < frontier_lines[u].size(); v++){
+                                    double dist_2 = sqrt(pow(frontier_lines[u][v].x()-x_frontier, 2)+pow(frontier_lines[u][v].y()-y_frontier, 2));
+                                    if(dist_2 < octo_reso) {
+                                      repet = true;
+                                      break;
+                                    }
+                                  }
+                                }
+
+                                if(distance < R1&&!repet){
+                                    frontier_lines[u].push_back(point3d(x_frontier, y_frontier, z_frontier));
+                                    belong_old = true;
+                                    break;
                                 }
                         }
-                        if(!belong_old){
+                        if(!belong_old&&!repet){
                                    frontier_points.resize(1);
                                    frontier_points[0] = point3d(x_frontier, y_frontier, z_frontier);
                                    frontier_lines.push_back(frontier_points);

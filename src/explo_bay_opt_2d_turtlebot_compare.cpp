@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
             int level = 0;
             if(entropy < 50){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z() );
+                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(),octo_reso,octo_reso );
 
                 if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 10);
                 else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 7);
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
 
 
 
-            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree, 1.5 );
+            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
 
             o = 0;
             for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines_3d.size(); e++) {

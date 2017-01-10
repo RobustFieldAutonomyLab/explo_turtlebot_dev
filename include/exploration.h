@@ -37,7 +37,7 @@ const double octo_reso = 0.1; // resolution
 
 octomap::OcTree* cur_tree;  // include sensor date, sensor position and sensor_max_range
 octomap_msgs::Octomap msg_octomap;
-//octomap::OcTree* cur_tree_2d;
+octomap::OcTree* cur_tree_2d;
 
 tf::TransformListener *tf_listener; 
 
@@ -163,31 +163,37 @@ void kinect_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg ) {
     delete cloud_local;
 }
 
-/*void hokuyo_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
+/*void kinect_2d_callbacks( const sensor_msgs::PointCloud2ConstPtr& cloud2_msg )
 {
-
+    ROS_INFO("1");
     pcl::PCLPointCloud2 cloud2;
     pcl_conversions::toPCL(*cloud2_msg, cloud2);
     PointCloud* cloud (new PointCloud);
     PointCloud* cloud_local (new PointCloud);
     pcl::fromPCLPointCloud2(cloud2,*cloud_local);
     octomap::Pointcloud hits;
-
+    
+    ROS_INFO("2");
     ros::Duration(0.07).sleep();
     while(!pcl_ros::transformPointCloud("/map", *cloud_local, *cloud, *tf_listener))
     {
         ros::Duration(0.01).sleep();
     }
-
+    
+    ROS_INFO("3");
     // Insert points into octomap one by one...
     for (int j = 1; j< cloud->width; j++)
     {
+    ROS_INFO("4");
         // if(isnan(cloud->at(j).x)) continue;
         hits.push_back(point3d(cloud->at(j).x, cloud->at(j).y, cloud->at(j).z));
     }
+    ROS_INFO("5");
     cur_tree_2d->insertPointCloud(hits, laser_orig, Kinect_360.max_range);
+    ROS_INFO("6");
     ROS_INFO("Entropy(2d map) : %f", get_free_volume(cur_tree_2d));
     cur_tree_2d->write(octomap_name_2d);
+    ROS_INFO("7");
     delete cloud;
     delete cloud_local;
 

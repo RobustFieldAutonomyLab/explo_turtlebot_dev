@@ -1,14 +1,15 @@
 <launch>
   <node pkg="hokuyo_node" type="hokuyo_node" name="hokuyo" />
-  <include file="$(find turtlebot_bringup)/launch/3dsensor.launch">
-  <!--  <arg name="rgb_processing" value="true" />
+  <arg name="scan_topic_2" value="/scan_kinect" />
+  <include file="$(find explo_octo_3d)/launch/3dsensor.launch">
+  <arg name="rgb_processing" value="true" />
     <arg name="depth_registration" value="true" />
     <arg name="depth_processing" value="true" />
-    <arg name="scan_processing" value="true" />           -->
+    <arg name="scan_processing" value="true" />          
     
     <!-- We must specify an absolute topic name because if not it will be prefixed by "$(arg camera)".
          Probably is a bug in the nodelet manager: https://github.com/ros/nodelet_core/issues/7 --> 
-    <!--arg name="scan_topic" value="/scan_kinect" /-->
+    <arg name="scan_topic_2" value="/scan_kinect" />
   </include>
 
   <node pkg="tf" type="static_transform_publisher" name="base_footprint_to_laser" args="0 0 0.35 0 0 0 base_footprint laser 50" />
@@ -63,6 +64,7 @@
   </node>
 
   <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
+  <!--node pkg="explo_octo_3d" type="scan_to_pcl" name="scan_to_pcl" /-->
 
 
 </launch>

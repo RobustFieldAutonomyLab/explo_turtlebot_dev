@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
 
 
     ros::Subscriber kinect_sub = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 1, kinect_callbacks);
+    //ros::Subscriber hokuyo_sub = nh.subscribe<sensor_msgs::PointCloud2>("/kinect_points", 1, kinect_2d_callbacks);
     ros::Publisher GoalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Goal_Marker", 1 );
     ros::Publisher JackalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Jackal_Marker", 1 );
     ros::Publisher Candidates_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_MIs", 1);
@@ -40,6 +41,8 @@ int main(int argc, char **argv) {
     ros::Publisher Frontier_points_3d_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points_3d", 1);
     ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
     ros::Publisher Octomap_pub = nh.advertise<octomap_msgs::Octomap>("octomap_3d",1);
+
+    ros::Publisher MI_marker_pub = nh.advertise<visualization_msgs::Marker>("MI_MarkerArray", 1);
 
 
     tf_listener = new tf::TransformListener();
@@ -51,7 +54,7 @@ int main(int argc, char **argv) {
     visualization_msgs::Marker OctomapOccupied_cubelist_3d;
     visualization_msgs::Marker Frontier_points_cubelist;
     visualization_msgs::Marker Frontier_points_cubelist_3d;
-    visualization_msgs::Marker Free_cubelist;
+    visualization_msgs::MarkerArray MI_cubelist;
     visualization_msgs::Marker Free_cubelist_3d;
     geometry_msgs::Twist twist_cmd;
 
@@ -94,6 +97,19 @@ int main(int argc, char **argv) {
         ros::Duration(0.05).sleep();
         }
 
+        got_tf = false;
+        while(!got_tf){
+        try{
+            tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
+            laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+            got_tf = true;
+        }
+        catch (tf::TransformException ex) {
+            ROS_WARN("Wait for tf: laser to map"); 
+        } 
+        ros::Duration(0.05).sleep();
+        }
+
         // Take a Scan
         ros::spinOnce();
 
@@ -129,6 +145,19 @@ int main(int argc, char **argv) {
     } 
     ros::Duration(0.05).sleep();
     }
+
+    got_tf = false;
+    while(!got_tf){
+    try{
+        tf_listener->lookupTransform("/map", "/laser", ros::Time(0), transform);
+        laser_orig = point3d(transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+        got_tf = true;
+    }
+    catch (tf::TransformException ex) {
+        ROS_WARN("Wait for tf: laser to map"); 
+    } 
+    ros::Duration(0.05).sleep();
+    }
    
     // Take a Fourth Scan
     ros::spinOnce();
@@ -156,7 +185,7 @@ int main(int argc, char **argv) {
             int level = 0;
             if(entropy < 1000){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z());
+                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 3*octo_reso);
 
                 if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 5);
                 else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 5);
@@ -167,7 +196,7 @@ int main(int argc, char **argv) {
 
             else if(entropy < 2000){
                 level = 2;
-                frontier_lines = generate_frontier_points_3d( cur_tree, 1.5 );
+                frontier_lines = generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
                 candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 5); 
             }
 
@@ -222,7 +251,7 @@ int main(int argc, char **argv) {
 
 
 
-            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree, 1.5 );
+            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
 
             o = 0;
             for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines_3d.size(); e++) {
@@ -481,6 +510,38 @@ int main(int argc, char **argv) {
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
+        
+
+        //MI distribution
+        MI_cubelist.markers.resize(candidates.size());
+        //geometry_msgs::Point p_MI;
+        for(int n = 0; n < candidates.size(); n++) { // changed there#######
+
+        MI_cubelist.markers[n].header.frame_id = "map";
+        MI_cubelist.markers[n].header.stamp = ros::Time::now();
+        MI_cubelist.markers[n].ns = "MI_array";
+        MI_cubelist.markers[n].id = n;
+        MI_cubelist.markers[n].type = visualization_msgs::Marker::CUBE_LIST;
+        MI_cubelist.markers[n].action = visualization_msgs::Marker::ADD;
+        MI_cubelist.markers[n].scale.x = octo_reso;
+        MI_cubelist.markers[n].scale.y = octo_reso;
+        MI_cubelist.markers[n].scale.z = octo_reso;
+        MI_cubelist.markers[n].color.a = 0.3;
+
+
+        //p_MI.x = candidates[n].first.x();
+        //p_MI.y = candidates[n].first.y();
+        //p_MI.z = candidates[n].first.z();
+        MI_cubelist.markers[n].pose.position.x = candidates[n].first.x();
+        MI_cubelist.markers[n].pose.position.y = candidates[n].first.y();
+        MI_cubelist.markers[n].pose.position.z = candidates[n].first.z();
+        //MI_cubelist.markers[n].points.push_back(p_MI);
+        MI_cubelist.markers[n].color.r = (double)MIs[n]/MIs[max_order[p]];
+        MI_cubelist.markers[n].color.g = 0;
+        MI_cubelist.markers[n].color.b = 1-(double)MIs[n]/MIs[max_order[p]];
+        }
+        MI_marker_pub.publish(MI_cubelist); //publish octomap############
+        MI_cubelist.markers.clear();
         candidates.clear();
 
         // Publish the goal as a Marker in rviz

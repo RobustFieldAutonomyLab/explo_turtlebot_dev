@@ -25,7 +25,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     for(R2 = R2_min; R2 <= R2_max; R2 = R2 + R_interv){
 
         for(vector<vector<point3d>>::size_type u = 0; u < frontier_groups.size(); u++) {
-            if(frontier_groups[u].size() > 8){
+            if(frontier_groups[u].size() > 6){
                 for(double yaw = 0; yaw < 2*PI; yaw += PI*2 / n_angle){ 
                     x = frontier_groups[u][0].x() - R2 * cos(yaw);
                     y = frontier_groups[u][0].y() - R2 * sin(yaw);
