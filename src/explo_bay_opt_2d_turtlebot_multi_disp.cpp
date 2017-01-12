@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
     ros::Publisher Octomap_pub = nh.advertise<octomap_msgs::Octomap>("octomap_3d",1);
 
-    ros::Publisher MI_marker_pub = nh.advertise<visualization_msgs::Marker>("MI_MarkerArray", 1);
+    //ros::Publisher MI_marker_pub = nh.advertise<visualization_msgs::Marker>("MI_MarkerArray", 1);
 
 
     tf_listener = new tf::TransformListener();
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     visualization_msgs::Marker OctomapOccupied_cubelist_3d;
     visualization_msgs::Marker Frontier_points_cubelist;
     visualization_msgs::Marker Frontier_points_cubelist_3d;
-    visualization_msgs::MarkerArray MI_cubelist;
+    //visualization_msgs::Marker MI_cubelist;
     visualization_msgs::Marker Free_cubelist_3d;
     geometry_msgs::Twist twist_cmd;
 
@@ -185,10 +185,10 @@ int main(int argc, char **argv) {
             int level = 0;
             if(entropy < 1000){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 3*octo_reso);
+                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 10*octo_reso);
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 5);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 5);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -234,8 +234,6 @@ int main(int argc, char **argv) {
             geometry_msgs::Point q;
             for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) { 
                 for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
-
-
                    q.x = frontier_lines[n][m].x();
                    q.y = frontier_lines[n][m].y();
                    q.z = frontier_lines[n][m].z()+octo_reso;
@@ -382,7 +380,7 @@ int main(int argc, char **argv) {
             
         // Generate Testing poses
         vector<pair<point3d, point3d>> gp_test_poses;
-        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 2, 20);
+        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 2, 40);
         else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.2, 3.9, 20);
 
         //Initialize gp regression
@@ -503,45 +501,43 @@ int main(int argc, char **argv) {
             CandidatesMarker_array.markers[i].scale.x = (double)MIs[i]/MIs[max_idx];
             CandidatesMarker_array.markers[i].scale.y = 0.05;
             CandidatesMarker_array.markers[i].scale.z = 0.05;
-            CandidatesMarker_array.markers[i].color.a = (double)MIs[i]/MIs[max_idx];
-            CandidatesMarker_array.markers[i].color.r = 0.0;
-            CandidatesMarker_array.markers[i].color.g = 1.0;
-            CandidatesMarker_array.markers[i].color.b = 0.0;
+            CandidatesMarker_array.markers[i].color.a = 1;
+            CandidatesMarker_array.markers[i].color.r = (double)MIs[i]/MIs[max_idx];
+            CandidatesMarker_array.markers[i].color.g = 0;
+            CandidatesMarker_array.markers[i].color.b = 1-(double)MIs[i]/MIs[max_idx];
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
         
 
         //MI distribution
-        MI_cubelist.markers.resize(candidates.size());
-        //geometry_msgs::Point p_MI;
+        //MI_cubelist.markers.resize(candidates.size());
+        /*geometry_msgs::Point p_MI;
+        
+
+        MI_cubelist.header.frame_id = "map";
+        MI_cubelist.header.stamp = now_marker;
+        MI_cubelist.ns = "MI_array";
+        MI_cubelist.id = 0;
+        MI_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
+        MI_cubelist.action = visualization_msgs::Marker::ADD;
+        MI_cubelist.scale.x = octo_reso;
+        MI_cubelist.scale.y = octo_reso;
+        MI_cubelist.scale.z = octo_reso;
+        MI_cubelist.color.a = 0.3;
+
         for(int n = 0; n < candidates.size(); n++) { // changed there#######
-
-        MI_cubelist.markers[n].header.frame_id = "map";
-        MI_cubelist.markers[n].header.stamp = ros::Time::now();
-        MI_cubelist.markers[n].ns = "MI_array";
-        MI_cubelist.markers[n].id = n;
-        MI_cubelist.markers[n].type = visualization_msgs::Marker::CUBE_LIST;
-        MI_cubelist.markers[n].action = visualization_msgs::Marker::ADD;
-        MI_cubelist.markers[n].scale.x = octo_reso;
-        MI_cubelist.markers[n].scale.y = octo_reso;
-        MI_cubelist.markers[n].scale.z = octo_reso;
-        MI_cubelist.markers[n].color.a = 0.3;
-
-
-        //p_MI.x = candidates[n].first.x();
-        //p_MI.y = candidates[n].first.y();
-        //p_MI.z = candidates[n].first.z();
-        MI_cubelist.markers[n].pose.position.x = candidates[n].first.x();
-        MI_cubelist.markers[n].pose.position.y = candidates[n].first.y();
-        MI_cubelist.markers[n].pose.position.z = candidates[n].first.z();
-        //MI_cubelist.markers[n].points.push_back(p_MI);
-        MI_cubelist.markers[n].color.r = (double)MIs[n]/MIs[max_order[p]];
-        MI_cubelist.markers[n].color.g = 0;
-        MI_cubelist.markers[n].color.b = 1-(double)MIs[n]/MIs[max_order[p]];
+        p_MI.x = candidates[n].first.x();
+        p_MI.y = candidates[n].first.y();
+        p_MI.z = candidates[n].first.z();
+        //MI_cubelist.markers[n].pose.position.x = candidates[n].first.x();
+        //MI_cubelist.markers[n].pose.position.y = candidates[n].first.y();
+        //MI_cubelist.markers[n].pose.position.z = candidates[n].first.z();
+        MI_cubelist.points.push_back(p_MI);
+        MI_cubelist.color.push_back((double)MIs[n]/MIs[max_order[p]], 0 ,1 - (double)MIs[n]/MIs[max_order[p]]);
         }
         MI_marker_pub.publish(MI_cubelist); //publish octomap############
-        MI_cubelist.markers.clear();
+        MI_cubelist.clear();*/
         candidates.clear();
 
         // Publish the goal as a Marker in rviz
