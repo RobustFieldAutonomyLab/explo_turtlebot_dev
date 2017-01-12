@@ -156,7 +156,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
                                 if(!repet){
                                   for(vector<point3d>::size_type v = 0; v < frontier_lines[u].size(); v++){
                                     double dist_2 = sqrt(pow(frontier_lines[u][v].x()-x_frontier, 2)+pow(frontier_lines[u][v].y()-y_frontier, 2));
-                                    if(dist_2 < octo_reso) {
+                                    if(dist_2 < 0.6*octo_reso) {
                                       repet = true;
                                       break;
                                     }

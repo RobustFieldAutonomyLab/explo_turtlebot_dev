@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
     ros::Publisher Octomap_pub = nh.advertise<octomap_msgs::Octomap>("octomap_3d",1);
 
-    //ros::Publisher MI_marker_pub = nh.advertise<visualization_msgs::Marker>("MI_MarkerArray", 1);
+    ros::Publisher MI_marker_pub = nh.advertise<visualization_msgs::Marker>("MI_MarkerArray", 1);
 
 
     tf_listener = new tf::TransformListener();
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     visualization_msgs::Marker OctomapOccupied_cubelist_3d;
     visualization_msgs::Marker Frontier_points_cubelist;
     visualization_msgs::Marker Frontier_points_cubelist_3d;
-    //visualization_msgs::Marker MI_cubelist;
+    visualization_msgs::MarkerArray MI_cubelist;
     visualization_msgs::Marker Free_cubelist_3d;
     geometry_msgs::Twist twist_cmd;
 
@@ -180,15 +180,16 @@ int main(int argc, char **argv) {
             start_over:
             vector<vector<point3d>> frontier_lines;
             vector<pair<point3d, point3d>> candidates;
+            vector<pair<point3d, point3d>> candidates_init;
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
             if(entropy < 1000){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 10*octo_reso);
+                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 3*octo_reso);
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
+                if(!BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
+                else candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -197,7 +198,7 @@ int main(int argc, char **argv) {
             else if(entropy < 2000){
                 level = 2;
                 frontier_lines = generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
-                candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 5); 
+                candidates_init = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 5); 
             }
 
             else{
@@ -302,7 +303,7 @@ int main(int argc, char **argv) {
         // Generate Candidates
         //vector<pair<point3d, point3d>> candidates = generate_candidates(frontier_lines, kinect_orig, 0.3, 1); 
         // Generate Testing poses
-        ROS_INFO("%lu candidates generated.", candidates.size());
+        ROS_INFO("%lu candidates generated.", candidates_init.size());
 
         // Generate Testing poses
         //vector<pair<point3d, point3d>> gp_test_poses = generate_testing(frontier_lines, kinect_orig);
@@ -310,7 +311,7 @@ int main(int argc, char **argv) {
 
         //frontier_lines.clear();
 
-        while(candidates.size() < 1)
+        while(candidates_init.size() < 1)
         {
             // Get the current heading
             got_tf = false;
@@ -339,11 +340,12 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 5);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 5);
+            if(!BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 5);
+            if(BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 5);
         }
         
-        vector<double> MIs(candidates.size());
+        vector<double> MIs_init(candidates_init.size());
+        vector<double> MIs;
         //vector<double> MIs_temp(candidates.size());
         double before = get_free_volume(cur_tree);
         max_idx = 0;
@@ -356,10 +358,10 @@ int main(int argc, char **argv) {
         Secs_CastRay = 0;
 
         #pragma omp parallel for
-        for(int i = 0; i < candidates.size(); i++) 
+        for(int i = 0; i < candidates_init.size(); i++) 
         {   
             //max_order[i] = i;
-            auto c = candidates[i];
+            auto c = candidates_init[i];
             // Evaluate Mutual Information
             Secs_tmp = ros::Time::now().toSec();
             Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
@@ -367,8 +369,8 @@ int main(int argc, char **argv) {
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
             //MIs_temp[i] = calc_MI(cur_tree, c.first, hits, before);
-            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
-            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            if(level == 1) MIs_init[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            else if(level == 2) MIs_init[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
             
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
@@ -385,13 +387,13 @@ int main(int argc, char **argv) {
 
         //Initialize gp regression
         GPRegressor g(100, 2, 0.01);// what's this?
-        MatrixXf gp_train_x(candidates.size(), 3), gp_train_label(candidates.size(), 1), gp_test_x(gp_test_poses.size(), 3);
+        MatrixXf gp_train_x(candidates_init.size(), 3), gp_train_label(candidates_init.size(), 1), gp_test_x(gp_test_poses.size(), 3);
 
-        for (int i=0; i< candidates.size(); i++){
-            gp_train_x(i,0) = candidates[i].first.x();
-            gp_train_x(i,1) = candidates[i].first.y();
-            gp_train_x(i,2) = candidates[i].second.z();
-            gp_train_label(i) = MIs[i];
+        for (int i=0; i< candidates_init.size(); i++){
+            gp_train_x(i,0) = candidates_init[i].first.x();
+            gp_train_x(i,1) = candidates_init[i].first.y();
+            gp_train_x(i,2) = candidates_init[i].second.z();
+            gp_train_label(i) = MIs_init[i];
         }
 
         for (int i=0; i< gp_test_poses.size(); i++){
@@ -409,7 +411,7 @@ int main(int argc, char **argv) {
         test_time = ros::Time::now().toSec();
         g.test(gp_test_x, m, s2);
         test_time = ros::Time::now().toSec() - test_time;
-        ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates.size(), train_time, gp_test_poses.size(), test_time);
+        ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates_init.size(), train_time, gp_test_poses.size(), test_time);
         candidates.resize(gp_test_poses.size());
         MIs.resize(gp_test_poses.size());        
         for(int i = 0; i < gp_test_poses.size(); i++){
@@ -511,34 +513,79 @@ int main(int argc, char **argv) {
         
 
         //MI distribution
-        //MI_cubelist.markers.resize(candidates.size());
-        /*geometry_msgs::Point p_MI;
-        
+        //discrete candidates
+        octomap::Pointcloud hits_candid;
+        vector<point3d> candidates_discrete;
+        ROS_INFO("1");
+        for(int i = 0; i < candidates.size(); i++){
+            hits_candid.push_back(point3d(candidates[i].first.x(), candidates[i].first.y(), candidates[i].first.z()));
+        }
+        ROS_INFO("2");
+        cur_tree_2d->insertPointCloud(hits_candid, kinect_orig, Kinect_360.max_range);
+        ROS_INFO("3");
+        for(octomap::OcTree::leaf_iterator n = cur_tree_2d->begin_leafs(cur_tree_2d->getTreeDepth()); n != cur_tree_2d->end_leafs(); ++n){
+            candidates_discrete.push_back(point3d(n.getX(), n.getY(), n.getZ()));
+        }
+        ROS_INFO("4");
+        cur_tree_2d->clear();
 
-        MI_cubelist.header.frame_id = "map";
-        MI_cubelist.header.stamp = now_marker;
-        MI_cubelist.ns = "MI_array";
-        MI_cubelist.id = 0;
-        MI_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
-        MI_cubelist.action = visualization_msgs::Marker::ADD;
-        MI_cubelist.scale.x = octo_reso;
-        MI_cubelist.scale.y = octo_reso;
-        MI_cubelist.scale.z = octo_reso;
-        MI_cubelist.color.a = 0.3;
+        //Initialize gp regression
+        GPRegressor g_disc(100, 2, 0.01);// what's this?
+        MatrixXf gp_train_x_disc(candidates_init.size(), 3), gp_train_label_disc(candidates_init.size(), 1), gp_test_x_disc(candidates_discrete.size(), 3);
+        ROS_INFO("5");
+        for (int i=0; i< candidates_init.size(); i++){
+            gp_train_x_disc(i,0) = candidates_init[i].first.x();
+            gp_train_x_disc(i,1) = candidates_init[i].first.y();
+            gp_train_x_disc(i,2) = candidates_init[i].second.z();
+            gp_train_label_disc(i) = MIs_init[i];
+        }
+        ROS_INFO("6");
+        for (int i=0; i< candidates_discrete.size(); i++){
+            gp_test_x_disc(i,0) = candidates_discrete[i].x();
+            gp_test_x_disc(i,1) = candidates_discrete[i].y();
+            gp_test_x_disc(i,2) = candidates_discrete[i].z();
+        }
+        ROS_INFO("7");
+        // Perform GP regression
+        MatrixXf m_disc, s2_disc;
+        //train_time = ros::Time::now().toSec();
+        g_disc.train(gp_train_x_disc, gp_train_label_disc);
+        //train_time = ros::Time::now().toSec() - train_time;
 
-        for(int n = 0; n < candidates.size(); n++) { // changed there#######
-        p_MI.x = candidates[n].first.x();
-        p_MI.y = candidates[n].first.y();
-        p_MI.z = candidates[n].first.z();
-        //MI_cubelist.markers[n].pose.position.x = candidates[n].first.x();
-        //MI_cubelist.markers[n].pose.position.y = candidates[n].first.y();
-        //MI_cubelist.markers[n].pose.position.z = candidates[n].first.z();
-        MI_cubelist.points.push_back(p_MI);
-        MI_cubelist.color.push_back((double)MIs[n]/MIs[max_order[p]], 0 ,1 - (double)MIs[n]/MIs[max_order[p]]);
+        //test_time = ros::Time::now().toSec();
+        g_disc.test(gp_test_x_disc, m_disc, s2_disc);
+
+
+        ROS_INFO("8");
+
+        MI_cubelist.markers.resize(candidates_discrete.size());
+        for(int i = 0; i < candidates_discrete.size(); i++){
+            MI_cubelist.markers[i].header.frame_id = "map";
+            MI_cubelist.markers[i].header.stamp = ros::Time::now();
+            MI_cubelist.markers[i].ns = "MI_array";
+            MI_cubelist.markers[i].id = i;
+            MI_cubelist.markers[i].type = visualization_msgs::Marker::ARROW;
+            MI_cubelist.markers[i].action = visualization_msgs::Marker::ADD;
+            MI_cubelist.markers[i].pose.position.x = candidates_discrete[i].x();
+            MI_cubelist.markers[i].pose.position.y = candidates_discrete[i].y();
+            MI_cubelist.markers[i].pose.position.z = candidates_discrete[i].z();
+            MI_cubelist.markers[i].pose.orientation.x = MI_heading.x();
+            MI_cubelist.markers[i].pose.orientation.y = MI_heading.y();
+            MI_cubelist.markers[i].pose.orientation.z = MI_heading.z();
+            MI_cubelist.markers[i].pose.orientation.w = MI_heading.w();
+            MI_cubelist.markers[i].scale.x = (double)m_disc(i)/MIs[max_idx];
+            MI_cubelist.markers[i].scale.y = 0.05;
+            MI_cubelist.markers[i].scale.z = 0.05;
+            MI_cubelist.markers[i].color.a = 1;
+            MI_cubelist.markers[i].color.r = (double)m_disc(i)/MIs[max_idx];
+            MI_cubelist.markers[i].color.g = 0;
+            MI_cubelist.markers[i].color.b = 1-(double)m_disc(i)/MIs[max_idx];
         }
         MI_marker_pub.publish(MI_cubelist); //publish octomap############
-        MI_cubelist.clear();*/
+        MI_cubelist.markers.clear();
         candidates.clear();
+        candidates_init.clear();
+        candidates_discrete.clear();
 
         // Publish the goal as a Marker in rviz
         visualization_msgs::Marker marker;
