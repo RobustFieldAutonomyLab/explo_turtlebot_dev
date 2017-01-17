@@ -11,8 +11,9 @@ Mat kmean_explo(const vector<pair<point3d, point3d>> candidates, const int clust
 	vector<Point2f> points(candidates.size());
 	Mat labels, centers;
 
-	for(int i = 0; i< candidates.size() ; i++)
+	for(int i = 0; i< candidates.size() ; i++){
 		points[i] = Point2f((float)(candidates[i].first.x()), (float)(candidates[i].first.y()));
+        }
 
 	kmeans(points, clustercount, labels, TermCriteria(count, max_iter, epsilon), attempts, flags, centers);
 

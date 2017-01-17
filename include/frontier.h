@@ -96,7 +96,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.5; //group length
+    double R1 = 0.4; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -131,7 +131,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
                                num_free++;
                             }     
                         }
-                if(frontier_true)// && num_free >5 )
+                if(frontier_true && num_free < 5 )
                 {
 
                     double x_frontier = x_cur;

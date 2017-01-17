@@ -138,6 +138,8 @@ add_executable(explo_bay_opt_2d_turtlebot_demo     src/explo_bay_opt_2d_turtlebo
 add_executable(explo_bay_opt_2d_turtlebot_compare     src/explo_bay_opt_2d_turtlebot_compare.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot_multi_disp     src/explo_bay_opt_2d_turtlebot_multi_disp.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 
+#add_executable(clusternode          src/clusternode.cpp)
+#add_executable(dbscan          src/dbscan.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -175,6 +177,14 @@ target_link_libraries(laserscan_filter
 target_link_libraries(pointcloud2_to_laserscan
   ${catkin_LIBRARIES}
 )
+
+#target_link_libraries(clusternode
+#  ${catkin_LIBRARIES}
+#)
+
+#target_link_libraries(dbscan
+#  ${catkin_LIBRARIES}
+#)
 
 
 #############

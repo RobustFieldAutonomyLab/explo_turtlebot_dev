@@ -188,8 +188,8 @@ int main(int argc, char **argv) {
                 level = 1;
                 frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 3*octo_reso);
 
-                if(!BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
-                else candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.3, 2, 10);
+                if(!BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.4, 2, 10);
+                else candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.4, 2, 10);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -429,7 +429,7 @@ int main(int argc, char **argv) {
             }*/
         
 
-        /*
+        
         //Clustering candidates by kmean
 
         int K = 5;//how many robots
@@ -440,7 +440,7 @@ int main(int argc, char **argv) {
         int flag = 1.0;
 
         Mat labels = kmean_explo(candidates, K, count, max_iter, epsilon, attempt, flag);
-        */
+        
         // ###########################
         long int max_order[candidates.size()];
         //long int equ_order[candidates.size()];
@@ -505,8 +505,8 @@ int main(int argc, char **argv) {
             CandidatesMarker_array.markers[i].scale.z = 0.05;
             CandidatesMarker_array.markers[i].color.a = 1;
             CandidatesMarker_array.markers[i].color.r = (double)MIs[i]/MIs[max_idx];
-            CandidatesMarker_array.markers[i].color.g = 0;
-            CandidatesMarker_array.markers[i].color.b = 1-(double)MIs[i]/MIs[max_idx];
+            CandidatesMarker_array.markers[i].color.g = 1-(double)MIs[i]/MIs[max_idx];
+            CandidatesMarker_array.markers[i].color.b = 0;
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
@@ -514,7 +514,7 @@ int main(int argc, char **argv) {
 
         //MI distribution
         //discrete candidates
-        octomap::Pointcloud hits_candid;
+        /*octomap::Pointcloud hits_candid;
         vector<point3d> candidates_discrete;
         ROS_INFO("1");
         for(int i = 0; i < candidates.size(); i++){
@@ -582,10 +582,10 @@ int main(int argc, char **argv) {
             MI_cubelist.markers[i].color.b = 1-(double)m_disc(i)/MIs[max_idx];
         }
         MI_marker_pub.publish(MI_cubelist); //publish octomap############
-        MI_cubelist.markers.clear();
+        MI_cubelist.markers.clear();*/
         candidates.clear();
         candidates_init.clear();
-        candidates_discrete.clear();
+        //candidates_discrete.clear();
 
         // Publish the goal as a Marker in rviz
         visualization_msgs::Marker marker;
