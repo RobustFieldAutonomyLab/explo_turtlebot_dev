@@ -96,7 +96,7 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
     bool frontier_true; // whether or not a frontier point
     bool belong_old;//whether or not belong to old group
     double distance;
-    double R1 = 0.4; //group length
+    double R1 = 0.3; //group length
     //double x_frontier;
     //double y_frontier;
     //double z_frontier;
@@ -104,7 +104,8 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
     for(octomap::OcTree::leaf_iterator n = octree->begin_leafs(octree->getTreeDepth()); n != octree->end_leafs(); ++n)
     {
         frontier_true = false;
-        unsigned long int num_free = 0; //number of free cube around frontier, for filtering out fake frontier
+        unsigned long int num_free = 0;//number of free cube around frontier, for filtering out fake frontier
+        unsigned long int num_occupied = 0;
 
       if(!octree->isNodeOccupied(*n))
         {
@@ -129,9 +130,12 @@ vector<vector<point3d>> generate_frontier_points_3d(const octomap::OcTree *octre
                             else if (!octree->isNodeOccupied(n_cur_frontier))
                             {
                                num_free++;
+                            }
+                            else if (octree->isNodeOccupied(n_cur_frontier)){
+                               num_occupied++;
                             }     
                         }
-                if(frontier_true && num_free < 5 )
+                if(frontier_true && num_occupied < 1)
                 {
 
                     double x_frontier = x_cur;

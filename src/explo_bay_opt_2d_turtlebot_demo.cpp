@@ -155,16 +155,16 @@ int main(int argc, char **argv) {
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
-            if(entropy < 300){
+            if(entropy < 1000){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree,kinect_orig.z(),octo_reso,octo_reso );
+                frontier_lines = generate_frontier_points_3d( cur_tree,kinect_orig.z(),-2*octo_reso,2*octo_reso );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 15);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 12);
                 
             }
 
-            else if(entropy < 1000){
+            else if(entropy < 2000){
                 level = 2;
                 frontier_lines = generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
                 candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
@@ -303,8 +303,8 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 15);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 12);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1.5, 20, 100, 15);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1.5, 20, 100, 12);
         }
         
         vector<double> MIs(candidates.size());
@@ -326,13 +326,14 @@ int main(int argc, char **argv) {
             auto c = candidates[i];
             // Evaluate Mutual Information
             Secs_tmp = ros::Time::now().toSec();
+            Sensor_PrincipalAxis = point3d(1.0, 0.0, 0.0);
             Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
             octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);  // what are those?#####
             Secs_CastRay += ros::Time::now().toSec() - Secs_tmp;
             Secs_tmp = ros::Time::now().toSec();
             //MIs_temp[i] = calc_MI(cur_tree, c.first, hits, before);
-            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
-            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            if(level == 1) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+            else if(level == 2) MIs[i] = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
             
             Secs_InsertRay += ros::Time::now().toSec() - Secs_tmp;
         }
@@ -347,8 +348,8 @@ int main(int argc, char **argv) {
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 2, 20, 100, 100);
-                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 100);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 50);
+                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 50, 50);
 
                 //Initialize gp regression
                 GPRegressor g(100, 2, 0.01);// what's this?
@@ -401,11 +402,11 @@ int main(int argc, char **argv) {
                 auto c = candidates_next;
                 Sensor_PrincipalAxis.rotate_IP(c.second.roll(), c.second.pitch(), c.second.yaw() );
                 octomap::Pointcloud hits = cast_sensor_rays(cur_tree, c.first, Sensor_PrincipalAxis);
-                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5);
-                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before)/pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
+                if(level == 1) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5);
+                else if (level == 2) MIs_next = calc_MI(cur_tree, c.first, hits, before);//pow(pow(c.first.x()-kinect_orig.x(), 2)+pow(c.first.y() - kinect_orig.y(), 2), 0.5);
                 candidates.push_back(candidates_next);
                 MIs.push_back(MIs_next);
-                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next/pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5));
+                ROS_INFO("%ld th candidate_next MI is %f", t, MIs_next);//pow(pow(candidates_next.first.x()-kinect_orig.x(), 2)+pow(candidates_next.first.y() - kinect_orig.y(), 2), 0.5));
 
 
             }

@@ -55,7 +55,7 @@ vector<vector<pair<point3d, point3d>>> DBSCAN_keypoints(vector<pair<point3d, poi
 
 	//C =0;
 	c = 0;
-	//clusters.push_back(vector<pair<point3d, point3d>>()); //will stay empty?
+	clusters.push_back(vector<pair<point3d, point3d>>()); //will stay empty?
 
 	//for each unvisted point P in dataset keypoints
 	for(int i = 0; i < noKeys; i++)
@@ -71,11 +71,10 @@ vector<vector<pair<point3d, point3d>>> DBSCAN_keypoints(vector<pair<point3d, poi
 	        else
 	        {
 	            clusters.push_back(vector<pair<point3d, point3d>>());
-	            
+	            c++;
 	            //expand cluster
 	            // add P to cluster c
 	            clusters[c].push_back(keypoints[i]);
-	            clustered[i] = true; 
 	            //for each point P' in neighborPts
 	            for(int j = 0; j < neighborPts.size(); j++)
 	            {
@@ -92,12 +91,9 @@ vector<vector<pair<point3d, point3d>>> DBSCAN_keypoints(vector<pair<point3d, poi
 	                }
 	                // if P' is not yet a member of any cluster
 	                // add P' to cluster c
-	                if(!clustered[neighborPts[j]]){
+	                if(!clustered[neighborPts[j]])
 	                    clusters[c].push_back(keypoints[neighborPts[j]]);
-	                    clustered[neighborPts[j]] = true;
-	                }
 	            }
-	            c++;
 	        }
 
 	    }

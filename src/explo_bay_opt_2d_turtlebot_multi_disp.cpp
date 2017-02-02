@@ -6,6 +6,7 @@
 #include "frontier.h"
 #include "candidates_multi.h"
 #include "kmean.h"
+#include "dbscan.h"
 using namespace std;
 // using namespace std::chrono;
 
@@ -37,6 +38,7 @@ int main(int argc, char **argv) {
     ros::Publisher GoalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Goal_Marker", 1 );
     ros::Publisher JackalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Jackal_Marker", 1 );
     ros::Publisher Candidates_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_MIs", 1);
+    ros::Publisher Candidates_multi_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_multi_MIs", 1);
     ros::Publisher Frontier_points_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points", 1);
     ros::Publisher Frontier_points_3d_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points_3d", 1);
     ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
@@ -50,6 +52,7 @@ int main(int argc, char **argv) {
     tf::Quaternion Goal_heading; // robot's heading direction
 
     visualization_msgs::MarkerArray CandidatesMarker_array;
+    visualization_msgs::MarkerArray CandidatesMarker_multi_array;
     visualization_msgs::Marker OctomapOccupied_cubelist;
     visualization_msgs::Marker OctomapOccupied_cubelist_3d;
     visualization_msgs::Marker Frontier_points_cubelist;
@@ -181,6 +184,7 @@ int main(int argc, char **argv) {
             vector<vector<point3d>> frontier_lines;
             vector<pair<point3d, point3d>> candidates;
             vector<pair<point3d, point3d>> candidates_init;
+            
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
@@ -346,6 +350,7 @@ int main(int argc, char **argv) {
         
         vector<double> MIs_init(candidates_init.size());
         vector<double> MIs;
+        
         //vector<double> MIs_temp(candidates.size());
         double before = get_free_volume(cur_tree);
         max_idx = 0;
@@ -382,64 +387,117 @@ int main(int argc, char **argv) {
             
         // Generate Testing poses
         vector<pair<point3d, point3d>> gp_test_poses;
-        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 2, 40);
+        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1.4, 40);
         else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.2, 3.9, 20);
 
-        //Initialize gp regression
-        GPRegressor g(100, 2, 0.01);// what's this?
-        MatrixXf gp_train_x(candidates_init.size(), 3), gp_train_label(candidates_init.size(), 1), gp_test_x(gp_test_poses.size(), 3);
+        float eps = 0.7;
+        int minPts =3;
 
-        for (int i=0; i< candidates_init.size(); i++){
-            gp_train_x(i,0) = candidates_init[i].first.x();
-            gp_train_x(i,1) = candidates_init[i].first.y();
-            gp_train_x(i,2) = candidates_init[i].second.z();
-            gp_train_label(i) = MIs_init[i];
+        vector<vector<pair<point3d, point3d>>> clusters = DBSCAN_keypoints(gp_test_poses, eps, minPts);
+        vector<vector<pair<point3d, point3d>>> candidates_multi(clusters.size());
+        vector<vector<double>> MIs_multi(clusters.size());
+        unsigned long int size_candi_multi = 0;
+        for(int i = 0; i < clusters.size(); i++){
+            size_candi_multi = size_candi_multi + clusters[i].size();
         }
+        ROS_INFO("size_candi_multi %ld", size_candi_multi);
 
-        for (int i=0; i< gp_test_poses.size(); i++){
-            gp_test_x(i,0) = gp_test_poses[i].first.x();
-            gp_test_x(i,1) = gp_test_poses[i].first.y();
-            gp_test_x(i,2) = gp_test_poses[i].second.z();
+            //Initialize gp regression
+            GPRegressor g(100, 2, 0.01);// what's this?
+            MatrixXf gp_train_x(candidates_init.size(), 3), gp_train_label(candidates_init.size(), 1), gp_test_x(gp_test_poses.size(), 3);
+
+            for (int i=0; i< candidates_init.size(); i++){
+                gp_train_x(i,0) = candidates_init[i].first.x();
+                gp_train_x(i,1) = candidates_init[i].first.y();
+                gp_train_x(i,2) = candidates_init[i].second.z();
+                gp_train_label(i) = MIs_init[i];
+            }
+
+            for (int i=0; i< gp_test_poses.size(); i++){
+                gp_test_x(i,0) = gp_test_poses[i].first.x();
+                gp_test_x(i,1) = gp_test_poses[i].first.y();
+                gp_test_x(i,2) = gp_test_poses[i].second.z();
+            }
+
+            // Perform GP regression
+            MatrixXf m, s2;
+            train_time = ros::Time::now().toSec();
+            g.train(gp_train_x, gp_train_label);
+            train_time = ros::Time::now().toSec() - train_time;
+
+            test_time = ros::Time::now().toSec();
+            g.test(gp_test_x, m, s2);
+            test_time = ros::Time::now().toSec() - test_time;
+            ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates_init.size(), train_time, gp_test_poses.size(), test_time);
+            candidates.resize(gp_test_poses.size());
+            MIs.resize(gp_test_poses.size());        
+            for(int i = 0; i < gp_test_poses.size(); i++){
+                MIs[i] = m(i);
+                candidates[i] = gp_test_poses[i];
+            }
+
+            frontier_lines.clear();
+            unsigned long int size_c = candidates.size();
+            unsigned long int size_M = MIs.size();
+            ROS_INFO("candidates size %ld, MIS size %ld ", size_c, size_M);
+
+        //multi-candidates
+        MatrixXf gp_train_x_multi, gp_train_label_multi, gp_test_x_multi, m_multi, s2_multi;
+        for(unsigned long int j = 0; j < clusters.size(); j++){
+            //Initialize gp regression
+            GPRegressor g(100, 2, 0.01);// what's this?
+            gp_train_x_multi.resize(candidates_init.size(), 3), gp_train_label_multi.resize(candidates_init.size(), 1), gp_test_x_multi.resize(clusters[j].size(), 3);
+
+            for (int i=0; i< candidates_init.size(); i++){
+                gp_train_x_multi(i,0) = candidates_init[i].first.x();
+                gp_train_x_multi(i,1) = candidates_init[i].first.y();
+                gp_train_x_multi(i,2) = candidates_init[i].second.z();
+                gp_train_label_multi(i) = MIs_init[i];
+            }
+
+            for (int i=0; i< clusters[j].size(); i++){
+                gp_test_x_multi(i,0) = clusters[j][i].first.x();
+                gp_test_x_multi(i,1) = clusters[j][i].first.y();
+                gp_test_x_multi(i,2) = clusters[j][i].second.z();
+            }
+
+            // Perform GP regression
+            m_multi.resize(clusters[j].size(),1), s2_multi.resize(clusters[j].size(),clusters[j].size());
+
+            train_time = ros::Time::now().toSec();
+            g.train(gp_train_x_multi, gp_train_label_multi);
+            train_time = ros::Time::now().toSec() - train_time;
+
+            test_time = ros::Time::now().toSec();
+            g.test(gp_test_x_multi, m_multi, s2_multi);
+            test_time = ros::Time::now().toSec() - test_time;
+            //ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates_init.size(), train_time, gp_test_poses.size(), test_time);
+            candidates_multi[j].resize(clusters[j].size());
+            MIs_multi[j].resize(clusters[j].size());        
+            for(int i = 0; i < clusters[j].size(); i++){
+                MIs_multi[j][i] = m_multi(i);
+                candidates_multi[j][i] = gp_test_poses[i];
+            }
+
+            frontier_lines.clear();
+            unsigned long int size_c = candidates_multi[j].size();
+            unsigned long int size_M = MIs_multi[j].size();
+            ROS_INFO("cluster %ld, candidates size %ld, MIS size %ld ", j, size_c, size_M);
         }
-
-        // Perform GP regression
-        MatrixXf m, s2;
-        train_time = ros::Time::now().toSec();
-        g.train(gp_train_x, gp_train_label);
-        train_time = ros::Time::now().toSec() - train_time;
-
-        test_time = ros::Time::now().toSec();
-        g.test(gp_test_x, m, s2);
-        test_time = ros::Time::now().toSec() - test_time;
-        ROS_INFO("GP: Train(%zd) took %f | Test(%zd) took %f", candidates_init.size(), train_time, gp_test_poses.size(), test_time);
-        candidates.resize(gp_test_poses.size());
-        MIs.resize(gp_test_poses.size());        
-        for(int i = 0; i < gp_test_poses.size(); i++){
-            MIs[i] = m(i);
-            candidates[i] = gp_test_poses[i];
-        }
-
-        frontier_lines.clear();
-        unsigned long int size_c = candidates.size();
-        unsigned long int size_M = MIs.size();
-        ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
-
-            /*for(int i = 0; i < candidates.size(); i++) {
-                MIs[i]=MIs[i]/pow(pow(candidates[i].first.x()-kinect_orig.x(), 2)+pow(candidates[i].first.y() - kinect_orig.y(), 2), 1.5);
-            }*/
         
 
         
         //Clustering candidates by kmean
 
-        int K = 5;//how many robots
-        int count = 1;
+        /*int K = 5;//how many robots
+        int count = 3;
         int max_iter = 10;
         int epsilon = 2;
         int attempt = 10;
         int flag = 1.0;
+        int clustercount = MIN(K,candidates.size());
 
-        Mat labels = kmean_explo(candidates, K, count, max_iter, epsilon, attempt, flag);
+        Mat labels = kmean_explo(candidates, clustercount, count, max_iter, epsilon, attempt, flag);*/
         
         // ###########################
         long int max_order[candidates.size()];
@@ -506,10 +564,55 @@ int main(int argc, char **argv) {
             CandidatesMarker_array.markers[i].color.a = 1;
             CandidatesMarker_array.markers[i].color.r = (double)MIs[i]/MIs[max_idx];
             CandidatesMarker_array.markers[i].color.g = 1-(double)MIs[i]/MIs[max_idx];
-            CandidatesMarker_array.markers[i].color.b = 0;
+            CandidatesMarker_array.markers[i].color.b = (double)MIs[i]/MIs[max_idx];
         }
         Candidates_pub.publish(CandidatesMarker_array); //publish candidates##########
         CandidatesMarker_array.markers.clear();
+
+        //for multi
+        int count_multi = 0;
+
+        unsigned long int size_multi = 0;
+        for(int i = 0; i < candidates_multi.size(); i++){
+            size_multi = size_multi + candidates_multi[i].size();
+        }
+        //ROS_INFO("size_multi %ld", size_multi);
+
+        CandidatesMarker_multi_array.markers.resize(size_multi);
+        //ROS_INFO("Here 1!");
+        for(int j = 0; j < candidates_multi.size(); j++){
+           // ROS_INFO("Here 2!");
+            for (int i = 0; i < candidates_multi[j].size(); i++)
+            {
+                CandidatesMarker_multi_array.markers[count_multi].header.frame_id = "map";
+                CandidatesMarker_multi_array.markers[count_multi].header.stamp = ros::Time::now();
+                CandidatesMarker_multi_array.markers[count_multi].ns = "candidates_multi";
+                CandidatesMarker_multi_array.markers[count_multi].id = count_multi;
+                CandidatesMarker_multi_array.markers[count_multi].type = visualization_msgs::Marker::ARROW;
+                CandidatesMarker_multi_array.markers[count_multi].action = visualization_msgs::Marker::ADD;
+                CandidatesMarker_multi_array.markers[count_multi].pose.position.x = candidates_multi[j][i].first.x();
+                CandidatesMarker_multi_array.markers[count_multi].pose.position.y = candidates_multi[j][i].first.y();
+                CandidatesMarker_multi_array.markers[count_multi].pose.position.z = kinect_orig.z();
+                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.x = MI_heading.x();
+                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.y = MI_heading.y();
+                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.z = MI_heading.z();
+                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.w = MI_heading.w();
+                CandidatesMarker_multi_array.markers[count_multi].scale.x =0.5;// (double)MIs_multi[j][i]/MIs[max_idx];
+                CandidatesMarker_multi_array.markers[count_multi].scale.y = 0.05;
+                CandidatesMarker_multi_array.markers[count_multi].scale.z = 0.05;
+                CandidatesMarker_multi_array.markers[count_multi].color.a = 1;
+                CandidatesMarker_multi_array.markers[count_multi].color.r = (double)j/candidates_multi.size();
+                CandidatesMarker_multi_array.markers[count_multi].color.g = 1-(double)j/candidates_multi.size();
+                CandidatesMarker_multi_array.markers[count_multi].color.b = 0;
+
+                count_multi++;
+            }
+            //ROS_INFO("Here 3!");
+        }
+        Candidates_multi_pub.publish(CandidatesMarker_multi_array); //publish candidates##########
+        CandidatesMarker_multi_array.markers.clear();
+
+        //ROS_INFO("Here 4!");
         
 
         //MI distribution
@@ -585,6 +688,7 @@ int main(int argc, char **argv) {
         MI_cubelist.markers.clear();*/
         candidates.clear();
         candidates_init.clear();
+        candidates_multi.clear();
         //candidates_discrete.clear();
 
         // Publish the goal as a Marker in rviz
