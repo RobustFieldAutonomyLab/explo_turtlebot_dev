@@ -22,13 +22,16 @@ int main(int argc, char **argv) {
     char buffer[80];
     time (&rawtime);
     timeinfo = localtime(&rawtime);
-    if(BayOpt)  strftime(buffer,80,"Trajectory_gp_BO_%R_%S_%m%d_DA.txt",timeinfo);
-    else  strftime(buffer,80,"Trajectory_DA_%R_%S_%m%d_DA.txt",timeinfo);
+    if(BayOpt){
+        strftime(buffer,80,"Trajectory_bay_%R_%S_%m%d.txt",timeinfo);
+        strftime(buffer,80,"octomap_bay_3d_%R_%S_%m%d.ot",timeinfo);
+    }
+    else{
+        strftime(buffer,80,"Trajectory_DA_%R_%S_%m%d.txt",timeinfo);
+        strftime(buffer,80,"octomap_DA_3d_%R_%S_%m%d.ot",timeinfo);  
+    }
     std::string logfilename(buffer);
     std::cout << logfilename << endl;
-    strftime(buffer,80,"octomap_gp_2d_%R_%S_%m%d_DA.ot",timeinfo);
-    octomap_name_2d = buffer;
-    strftime(buffer,80,"octomap_gp_3d_%R_%S_%m%d_DA.ot",timeinfo);
     octomap_name_3d = buffer;
 
 
@@ -120,8 +123,8 @@ int main(int argc, char **argv) {
                 level = 1;
                 frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(),-1*octo_reso,1*octo_reso );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 20);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 15);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 20, true, false);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 15, true, false);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -253,8 +256,8 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 1, 10,80, 20);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 1, 10, 80, 15);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 1, 10,80, 20, true, false);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 1, 10, 80, 15, true, false);
         }
         
         vector<double> MIs(candidates.size());
@@ -297,8 +300,8 @@ int main(int argc, char **argv) {
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 80);
-                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 10, 20, 20);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 80, true, true);
+                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 10, 20, 20, true, true);
 
                 //Initialize gp regression
                 GPRegressor g(100, 2, 0.01);// what's this?

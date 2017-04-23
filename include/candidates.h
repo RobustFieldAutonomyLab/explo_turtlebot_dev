@@ -9,7 +9,7 @@ using namespace std;
 
 //generate candidates for moving. Input sensor_orig and initial_yaw, Output candidates
 //senor_orig: locationg of sensor.   initial_yaw: yaw direction of sensor
-vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, double R_interv, const double R2_max, int n_angle, int n_base, int n_candid) {
+vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> frontier_groups, point3d sensor_orig, const double R2_min, double R_interv, const double R2_max, int n_angle, int n_base, int n_candid, bool infinite_candid, bool infinite_pose) {
     double R2;        // choose candidtates in the distance of R2 to the center of frontier group
     double R3 = 0.1;       //minial distance of candidates to other frontiers
 
@@ -83,6 +83,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     }
     vector<int> index_candid = sort_index(dist);
     int n_candid_temp = candidates_temp.size();
+    if(infinite_candid) n_base = n_candid_temp;
     for(int i = max(n_candid_temp - n_base, 0); i < n_candid_temp; i++ ){
 
         candidates_temp2.push_back(candidates_temp[index_candid[i]]);
@@ -91,6 +92,7 @@ vector<pair<point3d, point3d>> generate_candidates(vector<vector<point3d>> front
     random_shuffle ( candidates_temp2.begin(), candidates_temp2.end() );
 
     int n_candid_temp2 = candidates_temp2.size();
+    if(infinite_pose) n_candid = n_candid_temp2;
     
     for(int j = 0; j < min(n_candid_temp2, n_candid); j++){
         candidates.push_back(candidates_temp2[j]);

@@ -164,14 +164,14 @@ int main(int argc, char **argv) {
             level = 1;
             frontier_lines = generate_frontier_points_3d( cur_tree,kinect_orig.z(),-5*octo_reso,30*octo_reso );
 
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 15);
-            else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 12);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 15,false, false);
+            else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 12, false, false);
             
         }
         else if(entropy < 2000){
             level = 2;
             frontier_lines = generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
-            candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
+            candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15, false, false); 
         }
 
         else{
@@ -342,8 +342,8 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1.5, 20, 100, 15);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1.5, 20, 100, 12);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1.5, 20, 100, 15, false, false);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1.5, 20, 100, 12, false, false);
         }
         
         vector<double> MIs(candidates.size());
@@ -387,8 +387,8 @@ int main(int argc, char **argv) {
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 50);
-                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 50, 50);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 50, false, false);
+                else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 50, 50, false, false);
 
                 //Initialize gp regression
                 GPRegressor g(100, 2, 0.01);// what's this?
