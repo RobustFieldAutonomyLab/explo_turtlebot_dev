@@ -192,8 +192,8 @@ int main(int argc, char **argv) {
                 level = 1;
                 frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(), -3*octo_reso, 3*octo_reso);
 
-                if(!BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.4, 2, 10);
-                else candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.4, 2, 10);
+                if(!BayOpt) candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 20);
+                else candidates_init = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 2, 20);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -387,20 +387,25 @@ int main(int argc, char **argv) {
             
         // Generate Testing poses
         vector<pair<point3d, point3d>> gp_test_poses;
-        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1.4, 40);
+        if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.5, 40);
         else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.2, 3.9, 20);
 
-        float eps = 0.7;
-        int minPts =3;
+        float eps = 0.5;
+        int minPts =4;
+        //vector<int> clusters_index;
+        //int c;
 
-        vector<vector<pair<point3d, point3d>>> clusters = DBSCAN_keypoints(gp_test_poses, eps, minPts);
-        vector<vector<pair<point3d, point3d>>> candidates_multi(clusters.size());
+        pair<vector<int>, int> clusters_index = DBSCAN_keypoints(gp_test_poses, eps, minPts);
+        unsigned long int size_multi = clusters_index.first.size();
+        ROS_INFO("cluster size %ld", size_multi);
+
+        /*vector<vector<pair<point3d, point3d>>> candidates_multi(clusters.size());
         vector<vector<double>> MIs_multi(clusters.size());
         unsigned long int size_candi_multi = 0;
         for(int i = 0; i < clusters.size(); i++){
             size_candi_multi = size_candi_multi + clusters[i].size();
         }
-        ROS_INFO("size_candi_multi %ld", size_candi_multi);
+        ROS_INFO("size_candi_multi %ld", size_candi_multi);*/
 
             //Initialize gp regression
             GPRegressor g(100, 2, 0.01);// what's this?
@@ -442,7 +447,7 @@ int main(int argc, char **argv) {
             ROS_INFO("candidates size %ld, MIS size %ld ", size_c, size_M);
 
         //multi-candidates
-        MatrixXf gp_train_x_multi, gp_train_label_multi, gp_test_x_multi, m_multi, s2_multi;
+        /*MatrixXf gp_train_x_multi, gp_train_label_multi, gp_test_x_multi, m_multi, s2_multi;
         for(unsigned long int j = 0; j < clusters.size(); j++){
             //Initialize gp regression
             GPRegressor g(100, 2, 0.01);// what's this?
@@ -483,7 +488,7 @@ int main(int argc, char **argv) {
             unsigned long int size_c = candidates_multi[j].size();
             unsigned long int size_M = MIs_multi[j].size();
             ROS_INFO("cluster %ld, candidates size %ld, MIS size %ld ", j, size_c, size_M);
-        }
+        }*/
         
 
         
@@ -570,46 +575,34 @@ int main(int argc, char **argv) {
         CandidatesMarker_array.markers.clear();
 
         //for multi
-        int count_multi = 0;
-
-        unsigned long int size_multi = 0;
-        for(int i = 0; i < candidates_multi.size(); i++){
-            size_multi = size_multi + candidates_multi[i].size();
-        }
-        //ROS_INFO("size_multi %ld", size_multi);
 
         CandidatesMarker_multi_array.markers.resize(size_multi);
         //ROS_INFO("Here 1!");
-        for(int j = 0; j < candidates_multi.size(); j++){
+        for(int j = 0; j < size_multi; j++){
            // ROS_INFO("Here 2!");
-            for (int i = 0; i < candidates_multi[j].size(); i++)
-            {
-                CandidatesMarker_multi_array.markers[count_multi].header.frame_id = "map";
-                CandidatesMarker_multi_array.markers[count_multi].header.stamp = ros::Time::now();
-                CandidatesMarker_multi_array.markers[count_multi].ns = "candidates_multi";
-                CandidatesMarker_multi_array.markers[count_multi].id = count_multi;
-                CandidatesMarker_multi_array.markers[count_multi].type = visualization_msgs::Marker::ARROW;
-                CandidatesMarker_multi_array.markers[count_multi].action = visualization_msgs::Marker::ADD;
-                CandidatesMarker_multi_array.markers[count_multi].pose.position.x = candidates_multi[j][i].first.x();
-                CandidatesMarker_multi_array.markers[count_multi].pose.position.y = candidates_multi[j][i].first.y();
-                CandidatesMarker_multi_array.markers[count_multi].pose.position.z = kinect_orig.z();
-                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.x = MI_heading.x();
-                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.y = MI_heading.y();
-                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.z = MI_heading.z();
-                CandidatesMarker_multi_array.markers[count_multi].pose.orientation.w = MI_heading.w();
-                CandidatesMarker_multi_array.markers[count_multi].scale.x =0.5;// (double)MIs_multi[j][i]/MIs[max_idx];
-                CandidatesMarker_multi_array.markers[count_multi].scale.y = 0.05;
-                CandidatesMarker_multi_array.markers[count_multi].scale.z = 0.05;
-                CandidatesMarker_multi_array.markers[count_multi].color.a = 1;
-                CandidatesMarker_multi_array.markers[count_multi].color.r = (double)j/candidates_multi.size();
-                CandidatesMarker_multi_array.markers[count_multi].color.g = 1-(double)j/candidates_multi.size();
-                CandidatesMarker_multi_array.markers[count_multi].color.b = 0;
-
-                count_multi++;
-            }
+            CandidatesMarker_multi_array.markers[j].header.frame_id = "map";
+            CandidatesMarker_multi_array.markers[j].header.stamp = ros::Time::now();
+            CandidatesMarker_multi_array.markers[j].ns = "candidates_multi";
+            CandidatesMarker_multi_array.markers[j].id = j;
+            CandidatesMarker_multi_array.markers[j].type = visualization_msgs::Marker::ARROW;
+            CandidatesMarker_multi_array.markers[j].action = visualization_msgs::Marker::ADD;
+            CandidatesMarker_multi_array.markers[j].pose.position.x = candidates[j].first.x();
+            CandidatesMarker_multi_array.markers[j].pose.position.y = candidates[j].first.y();
+            CandidatesMarker_multi_array.markers[j].pose.position.z = candidates[j].first.z();
+            CandidatesMarker_multi_array.markers[j].pose.orientation.x = MI_heading.x();
+            CandidatesMarker_multi_array.markers[j].pose.orientation.y = MI_heading.y();
+            CandidatesMarker_multi_array.markers[j].pose.orientation.z = MI_heading.z();
+            CandidatesMarker_multi_array.markers[j].pose.orientation.w = MI_heading.w();
+            CandidatesMarker_multi_array.markers[j].scale.x = (double)MIs[j]/MIs[max_idx];
+            CandidatesMarker_multi_array.markers[j].scale.y = 0.05;
+            CandidatesMarker_multi_array.markers[j].scale.z = 0.05;
+            CandidatesMarker_multi_array.markers[j].color.a = 1;
+            CandidatesMarker_multi_array.markers[j].color.r = (double)clusters_index.first[j]/double(clusters_index.second);
+            CandidatesMarker_multi_array.markers[j].color.g = 1-(double)clusters_index.first[j]/double(clusters_index.second);
+            CandidatesMarker_multi_array.markers[j].color.b = 0;
             //ROS_INFO("Here 3!");
         }
-        Candidates_multi_pub.publish(CandidatesMarker_multi_array); //publish candidates##########
+        Candidates_multi_pub.publish(CandidatesMarker_multi_array); //publish candidates####ccl######
         CandidatesMarker_multi_array.markers.clear();
 
         //ROS_INFO("Here 4!");
@@ -686,9 +679,10 @@ int main(int argc, char **argv) {
         }
         MI_marker_pub.publish(MI_cubelist); //publish octomap############
         MI_cubelist.markers.clear();*/
-        candidates.clear();
-        candidates_init.clear();
-        candidates_multi.clear();
+        //candidates.clear();
+        //candidates_init.clear();
+        //clusters_index.clear();
+        //candidates_multi.clear();
         //candidates_discrete.clear();
 
         // Publish the goal as a Marker in rviz

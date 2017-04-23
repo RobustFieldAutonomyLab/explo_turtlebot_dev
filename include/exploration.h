@@ -41,7 +41,7 @@ octomap::OcTree* cur_tree_2d;
 
 tf::TransformListener *tf_listener; 
 
-bool BayOpt = true;//applying bayesian optimization or not
+bool BayOpt = false;//applying bayesian optimization or not
 
  
 point3d position, laser_orig, kinect_orig; // sensor positon
@@ -50,7 +50,7 @@ ofstream explo_log_file;
 std::string octomap_name_2d, octomap_name_3d;
 
 
-vector<int> sort_index(const vector<double> &v){
+vector<int> sort_index(const vector<double> &v){//sort in ascend order
     vector<int> idx(v.size());
     iota(idx.begin(), idx.end(),0);
 
@@ -83,7 +83,7 @@ struct SensorModel {
                 SensorRays.push_back(InitialVector);
         }
     }
-}; 
+};
 
 // Establish sensor kinect
 SensorModel Kinect_360(64, 48, 2*PI*57/360, 2*PI*43/360, 8);//model of kinect sensor

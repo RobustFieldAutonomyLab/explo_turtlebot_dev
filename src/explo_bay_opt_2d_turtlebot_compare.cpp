@@ -116,12 +116,12 @@ int main(int argc, char **argv) {
             double entropy = get_free_volume(cur_tree);
             ROS_INFO("entropy_frontie %f",entropy);
             int level = 0;
-            if(entropy < 50){
+            if(robot_step_counter < 60){
                 level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(),octo_reso,octo_reso );
+                frontier_lines = generate_frontier_points_3d( cur_tree, kinect_orig.z(),-1*octo_reso,1*octo_reso );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 10);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 7);
+                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 20);
+                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 15);
                 
                 //int n = frontier_lines.size();
                 //ROS_INFO("frontier_num %d", n); 
@@ -253,8 +253,8 @@ int main(int argc, char **argv) {
             // stop
             twist_cmd.angular.z = 0;
             pub_twist.publish(twist_cmd);
-            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 10);
-            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 7);
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 1, 10,80, 20);
+            if(BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 1, 10, 80, 15);
         }
         
         vector<double> MIs(candidates.size());
@@ -293,11 +293,11 @@ int main(int argc, char **argv) {
         if(BayOpt){
             double MIs_next;
             
-            for(unsigned long int t = 1; t < 4; t++){
+            for(unsigned long int t = 1; t < 6; t++){
                 int tn = 20;
                 // Generate Testing poses
                 vector<pair<point3d, point3d>> gp_test_poses;
-                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.1, 0.4, 10, 20, 20);
+                if(level == 1) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 0.1, 0.2, 1, 10, 80, 80);
                 else if(level == 2) gp_test_poses = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 10, 20, 20);
 
                 //Initialize gp regression

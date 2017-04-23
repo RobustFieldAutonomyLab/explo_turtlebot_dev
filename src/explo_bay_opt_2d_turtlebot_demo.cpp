@@ -37,9 +37,12 @@ int main(int argc, char **argv) {
     ros::Publisher JackalMarker_pub = nh.advertise<visualization_msgs::Marker>( "Jackal_Marker", 1 );
     ros::Publisher Candidates_pub = nh.advertise<visualization_msgs::MarkerArray>("Candidate_MIs", 1);
     ros::Publisher Frontier_points_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points", 1);
-    ros::Publisher Frontier_points_3d_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points_3d", 1);
+    ros::Publisher Frontiers_normals_pub = nh.advertise<visualization_msgs::MarkerArray>("Fronties_normals", 1);
+    ros::Publisher Frontier_points_center_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points_center", 1);
+    //ros::Publisher Frontier_points_3d_pub = nh.advertise<visualization_msgs::Marker>("Frontier_points_3d", 1);
     ros::Publisher pub_twist = nh.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/teleop", 1);
     ros::Publisher Octomap_pub = nh.advertise<octomap_msgs::Octomap>("octomap_3d",1);
+    //ros::Publisher frontier_pcl_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("frontier_pcl",1);
 
 
     tf_listener = new tf::TransformListener();
@@ -50,10 +53,12 @@ int main(int argc, char **argv) {
     visualization_msgs::Marker OctomapOccupied_cubelist;
     visualization_msgs::Marker OctomapOccupied_cubelist_3d;
     visualization_msgs::Marker Frontier_points_cubelist;
-    visualization_msgs::Marker Frontier_points_cubelist_3d;
+    visualization_msgs::Marker Frontier_points_center_cubelist;
     visualization_msgs::Marker Free_cubelist;
     visualization_msgs::Marker Free_cubelist_3d;
+    visualization_msgs::MarkerArray Frontiers_normals_array;
     geometry_msgs::Twist twist_cmd;
+    //pcl::PointCloud<pcl::PointXYZRGB> frontier_lines_pcl;
 
 
 
@@ -78,10 +83,9 @@ int main(int argc, char **argv) {
     bool arrived;
     
     // Update the initial location of the robot
-    for(int o =0; o < 6; o++){
+    for(int o =0; o < 0; o++){
         // Update the pose of the robot
-        got_tf = false
-;
+        got_tf = false;
         while(!got_tf){
         try{
             tf_listener->lookupTransform("/map", "/camera_rgb_frame", ros::Time(0), transform);// need to change tf of kinect###############
@@ -149,126 +153,161 @@ int main(int argc, char **argv) {
 
     while (ros::ok())
     {
-            start_over:
-            vector<vector<point3d>> frontier_lines;
-            vector<pair<point3d, point3d>> candidates;
-            double entropy = get_free_volume(cur_tree);
-            ROS_INFO("entropy_frontie %f",entropy);
-            int level = 0;
-            if(entropy < 1000){
-                level = 1;
-                frontier_lines = generate_frontier_points_3d( cur_tree,kinect_orig.z(),-2*octo_reso,2*octo_reso );
+        start_over:
+        vector<vector<point3d>> frontier_lines;
+        vector<pair<point3d, point3d>> candidates;
+        vector<point3d> frontiers_normals;
+        double entropy = get_free_volume(cur_tree);
+        ROS_INFO("entropy_frontie %f",entropy);
+        int level = 0;
+        if(entropy < 1000){
+            level = 1;
+            frontier_lines = generate_frontier_points_3d( cur_tree,kinect_orig.z(),-5*octo_reso,30*octo_reso );
 
-                if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 15);
-                else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 12);
-                
-            }
-
-            else if(entropy < 2000){
-                level = 2;
-                frontier_lines = generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
-                candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
-            }
-
-            else{
-                ROS_INFO("Exploration is done");
-                while(1);
-            }
+            if(!BayOpt) candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 15);
+            else candidates = generate_candidates(frontier_lines, kinect_orig, 0.5, 0.25, 1, 20, 50, 12);
             
-            unsigned long int o = 0;
-            for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines.size(); e++) {
-                o = o+frontier_lines[e].size();
+        }
+        else if(entropy < 2000){
+            level = 2;
+            frontier_lines = generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
+            candidates = generate_candidates(frontier_lines, kinect_orig, 3.9, 0.1, 3.9, 20, 100, 15); 
+        }
+
+        else{
+            ROS_INFO("Exploration is done");
+            while(1);
+        }
+
+        //frontier_lines = frontier_median_filter(frontier_lines);
+
+        frontiers_normals = generate_fnormal(frontier_lines);
+
+        //visualize frontier points and center
+        Frontier_points_center_cubelist.points.resize(frontier_lines.size());
+        now_marker = ros::Time::now();
+        Frontier_points_center_cubelist.header.frame_id = "map";
+        Frontier_points_center_cubelist.header.stamp = now_marker;
+        Frontier_points_center_cubelist.ns = "frontier_points_center_array";
+        Frontier_points_center_cubelist.id = 0;
+        Frontier_points_center_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
+        Frontier_points_center_cubelist.action = visualization_msgs::Marker::ADD;
+        Frontier_points_center_cubelist.scale.x = octo_reso;
+        Frontier_points_center_cubelist.scale.y = octo_reso;
+        Frontier_points_center_cubelist.scale.z = octo_reso;
+        Frontier_points_center_cubelist.color.a = 1.0;
+        Frontier_points_center_cubelist.color.r = (double)255/255;
+        Frontier_points_center_cubelist.color.g = 0;
+        Frontier_points_center_cubelist.color.b = (double)255/255;
+        Frontier_points_center_cubelist.lifetime = ros::Duration();
+
+        
+        unsigned long int o = 0;
+        for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines.size(); e++) {
+            o = o+frontier_lines[e].size();
+        }
+
+        Frontier_points_cubelist.points.resize(o);
+        ROS_INFO("frontier points %ld", o);
+        now_marker = ros::Time::now();
+        Frontier_points_cubelist.header.frame_id = "map";
+        Frontier_points_cubelist.header.stamp = now_marker;
+        Frontier_points_cubelist.ns = "frontier_points_array";
+        Frontier_points_cubelist.id = 0;
+        Frontier_points_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
+        Frontier_points_cubelist.action = visualization_msgs::Marker::ADD;
+        Frontier_points_cubelist.scale.x = octo_reso;
+        Frontier_points_cubelist.scale.y = octo_reso;
+        Frontier_points_cubelist.scale.z = octo_reso;
+        Frontier_points_cubelist.color.a = 0.8;
+        Frontier_points_cubelist.color.r = (double)255/255;
+        Frontier_points_cubelist.color.g = 0;
+        Frontier_points_cubelist.color.b = (double)0/255;
+        Frontier_points_cubelist.lifetime = ros::Duration();
+
+        unsigned long int t = 0;
+        //int l = 0;
+        geometry_msgs::Point q;
+        geometry_msgs::Point q_center;
+        for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) {
+            q_center.x = frontier_lines[n][0].x();
+            q_center.y = frontier_lines[n][0].y();
+            q_center.z = frontier_lines[n][0].z();
+            Frontier_points_center_cubelist.points.push_back(q_center);  
+            for(vector<point3d>::size_type m = 1; m < frontier_lines[n].size(); m++){
+               q.x = frontier_lines[n][m].x();
+               q.y = frontier_lines[n][m].y();
+               q.z = frontier_lines[n][m].z();
+               Frontier_points_cubelist.points.push_back(q);                
             }
+            t++;
+        }
+        ROS_INFO("Publishing %ld frontier_lines", t);
+        
+        Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points
+        Frontier_points_cubelist.points.clear();
+        Frontier_points_center_pub.publish(Frontier_points_center_cubelist); //publish frontier_points
+        Frontier_points_center_cubelist.points.clear();
 
-            Frontier_points_cubelist.points.resize(o);
-            ROS_INFO("frontier points %ld", o);
-            now_marker = ros::Time::now();
-            Frontier_points_cubelist.header.frame_id = "map";
-            Frontier_points_cubelist.header.stamp = now_marker;
-            Frontier_points_cubelist.ns = "frontier_points_array";
-            Frontier_points_cubelist.id = 0;
-            Frontier_points_cubelist.type = visualization_msgs::Marker::CUBE_LIST;
-            Frontier_points_cubelist.action = visualization_msgs::Marker::ADD;
-            Frontier_points_cubelist.scale.x = octo_reso;
-            Frontier_points_cubelist.scale.y = octo_reso;
-            Frontier_points_cubelist.scale.z = octo_reso;
-            Frontier_points_cubelist.color.a = 1.0;
-            Frontier_points_cubelist.color.r = (double)255/255;
-            Frontier_points_cubelist.color.g = 0;
-            Frontier_points_cubelist.color.b = (double)0/255;
-            Frontier_points_cubelist.lifetime = ros::Duration();
+        unsigned long int size_normals = frontiers_normals.size();
+        ROS_INFO("normals size %ld", size_normals);
 
-            unsigned long int t = 0;
-            //int l = 0;
-            geometry_msgs::Point q;
-            for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines.size(); n++) { 
-                for(vector<point3d>::size_type m = 0; m < frontier_lines[n].size(); m++){
+        tf::Quaternion Normal_heading;
+        Frontiers_normals_array.markers.resize(frontiers_normals.size()*2);
+        for (int i = 0; i < frontiers_normals.size(); i++ )
+        {
+            Frontiers_normals_array.markers[i*2].header.frame_id = "map";
+            Frontiers_normals_array.markers[i*2].header.stamp = ros::Time::now();
+            Frontiers_normals_array.markers[i*2].ns = "frontiers_normals";
+            Frontiers_normals_array.markers[i*2].id = i*2;
+            Frontiers_normals_array.markers[i*2].type = visualization_msgs::Marker::ARROW;
+            Frontiers_normals_array.markers[i*2].action = visualization_msgs::Marker::ADD;
+            Frontiers_normals_array.markers[i*2].pose.position.x = frontier_lines[i][0].x();
+            Frontiers_normals_array.markers[i*2].pose.position.y = frontier_lines[i][0].y();
+            Frontiers_normals_array.markers[i*2].pose.position.z = frontier_lines[i][0].z();
+            Normal_heading.setRPY(atan2(frontiers_normals[i].z(), frontiers_normals[i].y()), atan2(frontiers_normals[i].z(), frontiers_normals[i].x()), atan2(frontiers_normals[i].y(), frontiers_normals[i].x()));
+            Normal_heading.normalize();
+            Frontiers_normals_array.markers[i*2].pose.orientation.x = Normal_heading.x();
+            Frontiers_normals_array.markers[i*2].pose.orientation.y = Normal_heading.y();
+            Frontiers_normals_array.markers[i*2].pose.orientation.z = Normal_heading.z();
+            Frontiers_normals_array.markers[i*2].pose.orientation.w = Normal_heading.w();
+            Frontiers_normals_array.markers[i*2].scale.x = 0.5;
+            Frontiers_normals_array.markers[i*2].scale.y = 0.05;
+            Frontiers_normals_array.markers[i*2].scale.z = 0.05;
+            Frontiers_normals_array.markers[i*2].color.a = 0.8;
+            Frontiers_normals_array.markers[i*2].color.r = 0.0;
+            Frontiers_normals_array.markers[i*2].color.g = 0.0;
+            Frontiers_normals_array.markers[i*2].color.b = 1.0;
 
+            Frontiers_normals_array.markers[i*2+1].header.frame_id = "map";
+            Frontiers_normals_array.markers[i*2+1].header.stamp = ros::Time::now();
+            Frontiers_normals_array.markers[i*2+1].ns = "frontiers_normals";
+            Frontiers_normals_array.markers[i*2+1].id = i;
+            Frontiers_normals_array.markers[i*2+1].type = visualization_msgs::Marker::ARROW;
+            Frontiers_normals_array.markers[i*2+1].action = visualization_msgs::Marker::ADD;
+            Frontiers_normals_array.markers[i*2+1].pose.position.x = frontier_lines[i][0].x();
+            Frontiers_normals_array.markers[i*2+1].pose.position.y = frontier_lines[i][0].y();
+            Frontiers_normals_array.markers[i*2+1].pose.position.z = frontier_lines[i][0].z();
+            Normal_heading.setRPY(atan2(frontiers_normals[i].z(), frontiers_normals[i].y()) + PI, atan2(frontiers_normals[i].z(), frontiers_normals[i].x()) + PI, atan2(-frontiers_normals[i].y(), -frontiers_normals[i].x()) + PI);
+            //Normal_heading.normalize();
+            Frontiers_normals_array.markers[i+1].pose.orientation.x = Normal_heading.x();
+            Frontiers_normals_array.markers[i+1].pose.orientation.y = Normal_heading.y();
+            Frontiers_normals_array.markers[i+1].pose.orientation.z = Normal_heading.z();
+            Frontiers_normals_array.markers[i+1].pose.orientation.w = Normal_heading.w();
+            Frontiers_normals_array.markers[i+1].scale.x = 0.5;
+            Frontiers_normals_array.markers[i+1].scale.y = 0.05;
+            Frontiers_normals_array.markers[i+1].scale.z = 0.05;
+            Frontiers_normals_array.markers[i+1].color.a = 0.8;
+            Frontiers_normals_array.markers[i+1].color.r = 0.0;
+            Frontiers_normals_array.markers[i+1].color.g = 0.0;
+            Frontiers_normals_array.markers[i+1].color.b = 1.0;            
+        }
+        Frontiers_normals_pub.publish(Frontiers_normals_array); //publish candidates##########
+        Frontiers_normals_array.markers.clear();
+        frontier_lines.clear();
 
-                   q.x = frontier_lines[n][m].x();
-                   q.y = frontier_lines[n][m].y();
-                   q.z = frontier_lines[n][m].z()+octo_reso;
-                   Frontier_points_cubelist.points.push_back(q); 
-                   
-                }
-                t++;
-            }
-            ROS_INFO("Publishing %ld frontier_lines", t);
-            
-            Frontier_points_pub.publish(Frontier_points_cubelist); //publish frontier_points
-            Frontier_points_cubelist.points.clear();
-
-
-
-            vector<vector<point3d>> frontier_lines_3d=generate_frontier_points_3d( cur_tree, 1.5,octo_reso,octo_reso );
-
-            o = 0;
-            for(vector<vector<point3d>>::size_type e = 0; e < frontier_lines_3d.size(); e++) {
-                o = o+frontier_lines_3d[e].size();
-            }
-
-            Frontier_points_cubelist_3d.points.resize(o);
-            ROS_INFO("frontier points 3d %ld", o);
-            now_marker = ros::Time::now();
-            Frontier_points_cubelist_3d.header.frame_id = "map";
-            Frontier_points_cubelist_3d.header.stamp = now_marker;
-            Frontier_points_cubelist_3d.ns = "frontier_points_array_3d";
-            Frontier_points_cubelist_3d.id = 0;
-            Frontier_points_cubelist_3d.type = visualization_msgs::Marker::CUBE_LIST;
-            Frontier_points_cubelist_3d.action = visualization_msgs::Marker::ADD;
-            Frontier_points_cubelist_3d.scale.x = octo_reso;
-            Frontier_points_cubelist_3d.scale.y = octo_reso;
-            Frontier_points_cubelist_3d.scale.z = octo_reso;
-            Frontier_points_cubelist_3d.color.a = 0.3;
-            Frontier_points_cubelist_3d.color.r = (double)255/255;
-            Frontier_points_cubelist_3d.color.g = 0;
-            Frontier_points_cubelist_3d.color.b = (double)255/255;
-            Frontier_points_cubelist_3d.lifetime = ros::Duration();
-
-            t = 0;
-            //l = 0;
-            geometry_msgs::Point q2;
-            for(vector<vector<point3d>>::size_type n = 0; n < frontier_lines_3d.size(); n++) { 
-                for(vector<point3d>::size_type m = 0; m < frontier_lines_3d[n].size(); m++){
-
-
-                   q2.x = frontier_lines_3d[n][m].x();
-                   q2.y = frontier_lines_3d[n][m].y();
-                   q2.z = frontier_lines_3d[n][m].z()+octo_reso;
-                   Frontier_points_cubelist_3d.points.push_back(q2); 
-                   
-                }
-                t++;
-            }
-            ROS_INFO("Publishing %ld frontier_lines_3d", t);
-            
-            Frontier_points_3d_pub.publish(Frontier_points_cubelist_3d); //publish frontier_points
-            Frontier_points_cubelist_3d.points.clear();
-
-
-
-
-
+        //Publish frontier as pointcloud
+        //frontier_lines_pcl.resize(0);
     
         // Generate Testing poses
         ROS_INFO("%lu candidates generated.", candidates.size());
@@ -410,7 +449,7 @@ int main(int argc, char **argv) {
 
 
             }
-            frontier_lines.clear();
+            
             unsigned long int size_c = candidates.size();
             unsigned long int size_M = MIs.size();
             ROS_INFO("candidates size %ld MIS size %ld ", size_c, size_M);
@@ -461,6 +500,8 @@ int main(int argc, char **argv) {
         tf::Quaternion MI_heading;
         MI_heading.setRPY(0.0, -PI/2, 0.0);
         MI_heading.normalize();
+
+
         
         CandidatesMarker_array.markers.resize(candidates.size());
         for (int i = 0; i < candidates.size(); i++)

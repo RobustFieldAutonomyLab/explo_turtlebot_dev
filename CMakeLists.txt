@@ -137,6 +137,7 @@ add_executable(pointcloud2_to_laserscan    src/pointcloud2_to_laserscan.cpp)
 add_executable(explo_bay_opt_2d_turtlebot_demo     src/explo_bay_opt_2d_turtlebot_demo.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot_compare     src/explo_bay_opt_2d_turtlebot_compare.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
 add_executable(explo_bay_opt_2d_turtlebot_multi_disp     src/explo_bay_opt_2d_turtlebot_multi_disp.cpp src/gpregressor.cpp  src/covMaterniso3.cpp )
+add_executable(frontier_segment          src/frontier_segment.cpp)
 
 #add_executable(clusternode          src/clusternode.cpp)
 #add_executable(dbscan          src/dbscan.cpp)
@@ -178,13 +179,10 @@ target_link_libraries(pointcloud2_to_laserscan
   ${catkin_LIBRARIES}
 )
 
-#target_link_libraries(clusternode
-#  ${catkin_LIBRARIES}
-#)
+target_link_libraries(frontier_segment
+  ${catkin_LIBRARIES}
+)
 
-#target_link_libraries(dbscan
-#  ${catkin_LIBRARIES}
-#)
 
 
 #############

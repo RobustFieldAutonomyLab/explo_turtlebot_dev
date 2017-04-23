@@ -5,14 +5,28 @@
 
 using namespace std;
 
-vector<int> regionQuery(vector<pair<point3d, point3d>> keypoints, int keypoint, float eps)
+/*vector<pair<point3d, point3d>> dbscan(vector<pair<point3d, point3d>> candidates, float eps, int minPts)
+{
+	vector<KeyPoint> *keypoints;
+	keypoints->resize(candidates.size());
+	for(i = 0; i < candidates.size(); i++){
+		keypoints->at(i).pt.x = candidates[i].first.x();
+		keypoints->at(i).pt.y = candidates[i].first.y();
+	}
+
+	vector<vector<KeyPoint>> clusters = DBSCAN_keypoints(keypoints, eps, minPts);
+
+
+}*/
+
+vector<int> regionQuery(vector<pair<point3d, point3d>> keypoints, pair<point3d, point3d> keypoint, float eps, int j)
 {
 	float dist;
 	vector<int> retKeys;
 	for(int i = 0; i< keypoints.size(); i++)
 	{
-	    dist = sqrt(pow((keypoints[keypoint].first.x() - keypoints[i].first.x()),2)+pow((keypoints[keypoint].first.y() - keypoints[i].first.y()),2));
-	    if(dist <= eps && i != keypoint)
+	    dist = sqrt(pow((keypoint.first.x() - keypoints[i].first.x()),2)+pow((keypoint.first.y() - keypoints[i].first.y()),2));
+	    if(dist <= eps && i != j)
 	    {
 	        retKeys.push_back(i);
 	    }
@@ -20,11 +34,11 @@ vector<int> regionQuery(vector<pair<point3d, point3d>> keypoints, int keypoint, 
 	return retKeys;
 }
 
-pair<vector<int>, int> DBSCAN_keypoints(vector<pair<point3d, point3d>> keypoints, float eps, int minPts)
+vector<vector<pair<point3d, point3d>>> DBSCAN_keypoints(vector<pair<point3d, point3d>> keypoints, float eps, int minPts)
 {
-	vector<int> clusters_index;
+	vector<vector<pair<point3d, point3d>>> clusters;
 	vector<bool> clustered;
-	//vector<int> noise;
+	vector<int> noise;
 	vector<bool> visited;
 	vector<int> neighborPts;
 	vector<int> neighborPts_;
@@ -37,11 +51,10 @@ pair<vector<int>, int> DBSCAN_keypoints(vector<pair<point3d, point3d>> keypoints
 	{
 	    clustered.push_back(false);
 	    visited.push_back(false);
-	    clusters_index.push_back(0);
 	}
 
-	
-	c = 1;
+	//C =0;
+	c = 0;
 	//clusters.push_back(vector<pair<point3d, point3d>>()); //will stay empty?
 
 	//for each unvisted point P in dataset keypoints
@@ -51,13 +64,17 @@ pair<vector<int>, int> DBSCAN_keypoints(vector<pair<point3d, point3d>> keypoints
 	    {
 	        //Mark P as visited
 	        visited[i] = true;
-	        neighborPts = regionQuery(keypoints,i,eps);
+	        neighborPts = regionQuery(keypoints,keypoints[i],eps, i);
 	        if(neighborPts.size() < minPts)
 	            //Mark P as Noise
-	            clusters_index[i] = 0;
+	            noise.push_back(i);
 	        else
 	        {
-				clusters_index[i] = c;
+	            clusters.push_back(vector<pair<point3d, point3d>>());
+	            
+	            //expand cluster
+	            // add P to cluster c
+	            clusters[c].push_back(keypoints[i]);
 	            clustered[i] = true; 
 	            //for each point P' in neighborPts
 	            for(int j = 0; j < neighborPts.size(); j++)
@@ -67,29 +84,29 @@ pair<vector<int>, int> DBSCAN_keypoints(vector<pair<point3d, point3d>> keypoints
 	                {
 	                    //Mark P' as visited
 	                    visited[neighborPts[j]] = true;
-	                    neighborPts_ = regionQuery(keypoints,neighborPts[j],eps);
+	                    neighborPts_ = regionQuery(keypoints,keypoints[neighborPts[j]],eps, j);
 	                    if(neighborPts_.size() >= minPts)
 	                    {
 	                        neighborPts.insert(neighborPts.end(),neighborPts_.begin(),neighborPts_.end());
 	                    }
 	                    else
 	                    {
-	                    	clusters_index[neighborPts[j]] = 0;
+	                    	noise.push_back(neighborPts[j]);
 	                    }
 	                }
 	                // if P' is not yet a member of any cluster
 	                // add P' to cluster c
 	                if(!clustered[neighborPts[j]]){
-	                    clusters_index[neighborPts[j]] = c;
+	                    clusters[c].push_back(keypoints[neighborPts[j]]);
 	                    clustered[neighborPts[j]] = true;
 	                }
 	            }
-            	c++;	            
+	            c++;
 	        }
 
 	    }
 	}
-	return make_pair( clusters_index, c );
+	return clusters;
 }
 
 #endif
